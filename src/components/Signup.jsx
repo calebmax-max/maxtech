@@ -8,6 +8,7 @@ const Signup = () => {
   const[email, setEmail] =useState("");
   const[password, setPassword] =useState("");
   const[phone, setPhone] =useState("");
+  const [showPassword, setShowPassword] = useState(false);
  
 // Define the three states an application will move to
 const [loading, setLoading] = useState("");
@@ -116,13 +117,24 @@ const handleSubmit =  async (e) =>{
 
             <label className="auth-field">
               <span>Password</span>
-              <input
-                type="password"
-                placeholder='Create a password'
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="auth-password">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder='Create a password'
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="auth-password__toggle"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
             </label>
 
             <label className="auth-field">

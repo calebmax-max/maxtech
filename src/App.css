@@ -569,6 +569,38 @@ img {
   transform: translateY(-1px);
 }
 
+.auth-password {
+  position: relative;
+}
+
+.auth-password input {
+  width: 100%;
+  padding-right: 5.5rem;
+}
+
+.auth-password__toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: #0d6adf;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.35rem 0.45rem;
+  border-radius: 10px;
+}
+
+.auth-password__toggle:hover {
+  color: #084cb0;
+}
+
+.auth-password__toggle:focus-visible {
+  outline: 2px solid rgba(13, 106, 223, 0.28);
+  outline-offset: 2px;
+}
+
 .auth-form--double .auth-submit,
 .auth-form--double .auth-switch {
   grid-column: span 2;

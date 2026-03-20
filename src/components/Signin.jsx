@@ -6,6 +6,7 @@ const Signin = () => {
   // Define the two hooks for capturing/ storing the users input
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   //Declare the three additional hooks
   const [loading, setLoading] = useState("");
@@ -100,13 +101,24 @@ const Signin = () => {
 
             <label className="auth-field auth-field--signin">
               <span>Password</span>
-              <input
-                type="password"
-                placeholder='Enter your password'
-                required
-                value={password}
-                onChange={(e)=> setPassword(e.target.value)}
-              />
+              <div className="auth-password">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder='Enter your password'
+                  required
+                  value={password}
+                  onChange={(e)=> setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="auth-password__toggle"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
             </label>
 
             <button type="submit" className="auth-submit">

@@ -26,6 +26,14 @@ function AppLayout() {
     setMenuOpen(false);
   }, [location.pathname, location.hash]);
 
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'auto',
+    });
+  }, [location.key]);
+
   return (
     <div className="App">
       <header className={`site-header ${isHomePage ? 'site-header--home' : ''}`}>
