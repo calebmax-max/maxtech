@@ -12,6 +12,12 @@
   text-align: center;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 .App,
 html {
   scroll-behavior: smooth;
@@ -309,6 +315,12 @@ html {
 body {
   background: linear-gradient(180deg, #f8f5ef 0%, #fffdf9 100%);
   color: #1f2430;
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+  display: block;
 }
 
 .hotel-page {
@@ -3322,6 +3334,439 @@ body {
   .events-showcase__actions,
   .events-showcase .feature-cta {
     width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .site-header {
+    padding: 0.6rem 0.6rem 0;
+  }
+
+  .site-header--home {
+    margin-bottom: -64px;
+  }
+
+  .site-header__inner {
+    padding: 0.8rem 0.9rem;
+    border-radius: 16px;
+  }
+
+  .site-brand {
+    gap: 0.65rem;
+    min-width: 0;
+  }
+
+  .site-brand__mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-size: 1rem;
+  }
+
+  .site-brand__text strong {
+    font-size: 0.92rem;
+  }
+
+  .site-brand__text small {
+    letter-spacing: 0.08em;
+  }
+
+  .site-nav {
+    top: calc(100% + 0.7rem);
+    padding: 0.7rem;
+    border-radius: 18px;
+  }
+
+  .site-nav__link,
+  .site-nav__cta {
+    min-height: 40px;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.95rem;
+  }
+
+  .hotel-hero,
+  .hotel-hero__overlay {
+    min-height: 560px;
+  }
+
+  .hotel-hero__overlay {
+    padding: 6rem 1rem 7rem;
+  }
+
+  .hotel-hero__subtitle {
+    font-size: 1rem;
+  }
+
+  .booking-panel {
+    margin: -3.5rem 0.7rem 0;
+    padding: 1rem;
+  }
+
+  .booking-panel h3,
+  .feature-panel__heading h3,
+  .payment-form-card__header h3,
+  .event-form-card__header h3,
+  .bookings-form-card__heading h3 {
+    font-size: 1.35rem;
+  }
+
+  .hotel-action,
+  .feature-cta,
+  .booking-search,
+  .room-card__cta,
+  .room-details__back,
+  .payment-back,
+  .payment-submit,
+  .bookings-submit,
+  .bookings-offer-card__cta,
+  .event-submit {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .feature-panel,
+  .experience-section,
+  .rooms-page,
+  .dining-page,
+  .bookings-page,
+  .payment-page,
+  .contact-page,
+  .event-page,
+  .room-details,
+  .auth-page {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .rooms-page__hero,
+  .dining-page__hero,
+  .bookings-page__hero,
+  .payment-page__hero,
+  .contact-page__hero,
+  .event-page__hero,
+  .experience-section__intro,
+  .visit-banner,
+  .events-showcase,
+  .payment-shell--empty {
+    padding: 1.35rem 1rem;
+  }
+
+  .bookings-form-card,
+  .bookings-summary-card,
+  .bookings-offer-card,
+  .payment-summary-card,
+  .payment-form-card,
+  .contact-card,
+  .contact-visit-card,
+  .event-page__info,
+  .event-form-card,
+  .room-showcase,
+  .rooms-feature,
+  .room-details__hero,
+  .room-details__card,
+  .auth-shell__panel,
+  .auth-card {
+    padding: 1rem;
+  }
+
+  .room-card__actions,
+  .events-showcase__actions,
+  .payment-cart__add,
+  .payment-cart__row,
+  .payment-cart__actions,
+  .bookings-offer-card__footer {
+    width: 100%;
+  }
+
+  .payment-cart__row,
+  .payment-cart__actions,
+  .room-card__actions,
+  .events-showcase__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .payment-cart__actions input,
+  .payment-field input,
+  .payment-field select,
+  .auth-field input,
+  .bookings-field input,
+  .bookings-field select,
+  .booking-field input,
+  .booking-field select,
+  .room-details__field input {
+    width: 100%;
+  }
+
+  .site-footer__bottom {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .site-brand__text small {
+    display: none;
+  }
+
+  .site-brand__text strong {
+    font-size: 0.84rem;
+  }
+
+  .site-nav__toggle {
+    width: 42px;
+    height: 42px;
+  }
+
+  .hotel-hero,
+  .hotel-hero__overlay {
+    min-height: 500px;
+  }
+
+  .hotel-hero__overlay {
+    padding: 5.5rem 0.85rem 6rem;
+  }
+
+  .hotel-hero h1 {
+    font-size: clamp(2.1rem, 10vw, 2.8rem);
+  }
+
+  .hotel-hero h2,
+  .rooms-page__hero h2,
+  .dining-page__hero h2,
+  .bookings-page__hero h2,
+  .payment-page__hero h2,
+  .contact-page__hero h2,
+  .event-page__hero h2,
+  .room-details__content h2,
+  .events-showcase h4,
+  .experience-section__intro h3,
+  .auth-card__header h2,
+  .auth-shell__panel h1 {
+    font-size: clamp(1.55rem, 8vw, 2.2rem);
+    line-height: 1.15;
+  }
+
+  .hotel-action,
+  .feature-cta,
+  .booking-search,
+  .room-card__cta,
+  .room-details__back,
+  .payment-back,
+  .payment-submit,
+  .bookings-submit,
+  .bookings-offer-card__cta,
+  .event-submit,
+  .auth-submit {
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+  }
+
+  .booking-panel,
+  .rooms-page__hero,
+  .dining-page__hero,
+  .bookings-page__hero,
+  .payment-page__hero,
+  .contact-page__hero,
+  .event-page__hero,
+  .experience-section__intro,
+  .events-showcase,
+  .visit-banner {
+    border-radius: 18px;
+  }
+
+  .payment-summary-card__image,
+  .bookings-offer-card__image,
+  .room-showcase__image,
+  .room-card__image,
+  .dining-menu-item__image {
+    height: 170px;
+  }
+
+  .rooms-feature__image,
+  .room-details__image {
+    min-height: 220px;
+  }
+
+  .payment-cart,
+  .room-details__panel,
+  .bookings-total,
+  .event-estimate,
+  .payment-summary-card__total,
+  .room-details__total {
+    padding: 0.9rem;
+    border-radius: 14px;
+  }
+
+  .events-showcase__meta span,
+  .bookings-summary-card__perks span,
+  .room-card__features span,
+  .auth-shell__highlights span {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 340px) {
+  .site-header {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  .feature-panel,
+  .experience-section,
+  .rooms-page,
+  .dining-page,
+  .bookings-page,
+  .payment-page,
+  .contact-page,
+  .event-page,
+  .room-details,
+  .auth-page {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .site-brand__mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .site-brand__text strong {
+    font-size: 0.78rem;
+  }
+
+  .booking-field input,
+  .booking-field select,
+  .bookings-field input,
+  .bookings-field select,
+  .payment-field input,
+  .payment-field select,
+  .auth-field input,
+  .room-details__field input,
+  .event-field input,
+  .event-field select,
+  .contact-field input,
+  .contact-field textarea {
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .site-header__inner,
+  .rooms-page__hero,
+  .dining-page__hero,
+  .bookings-page__hero,
+  .payment-page__hero,
+  .contact-page__hero,
+  .event-page__hero,
+  .experience-section__intro,
+  .bookings-form-card,
+  .bookings-summary-card,
+  .bookings-offer-card,
+  .payment-summary-card,
+  .payment-form-card,
+  .contact-card,
+  .contact-visit-card,
+  .event-page__info,
+  .event-form-card,
+  .room-showcase,
+  .rooms-feature,
+  .room-details__hero,
+  .room-details__card,
+  .auth-shell__panel,
+  .auth-card,
+  .events-showcase__content,
+  .visit-banner,
+  .booking-panel {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .site-brand__text strong {
+    font-size: 0.74rem;
+  }
+
+  .site-nav__link,
+  .site-nav__cta {
+    font-size: 0.9rem;
+  }
+
+  .hotel-hero__subtitle,
+  .rooms-page__intro,
+  .dining-page__intro,
+  .bookings-page__intro,
+  .payment-page__intro,
+  .contact-page__intro,
+  .event-page__intro,
+  .room-details__lead,
+  .auth-shell__lead,
+  .auth-card__header p:last-child,
+  .experience-section__intro p,
+  .events-showcase p:last-child,
+  .visit-banner p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .events-showcase__meta,
+  .room-card__features,
+  .bookings-summary-card__perks,
+  .auth-shell__highlights {
+    gap: 0.55rem;
+  }
+
+  .events-showcase__meta span,
+  .room-card__features span,
+  .bookings-summary-card__perks span,
+  .auth-shell__highlights span {
+    font-size: 0.85rem;
+    padding: 0.58rem 0.75rem;
+  }
+
+  .payment-cart__button,
+  .payment-cart__remove,
+  .bookings-submit,
+  .bookings-offer-card__cta,
+  .payment-submit,
+  .payment-back,
+  .event-submit,
+  .room-card__cta,
+  .room-details__back,
+  .feature-cta,
+  .hotel-action,
+  .booking-search,
+  .auth-submit {
+    min-height: 46px;
+    font-size: 0.92rem;
+  }
+
+  .payment-cart__actions input,
+  .payment-field input,
+  .payment-field select,
+  .booking-field input,
+  .booking-field select,
+  .bookings-field input,
+  .bookings-field select,
+  .auth-field input,
+  .event-field input,
+  .event-field select,
+  .contact-field input,
+  .contact-field textarea,
+  .room-details__field input {
+    min-height: 52px;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .payment-summary-card__image,
+  .bookings-offer-card__image,
+  .room-showcase__image,
+  .room-card__image,
+  .dining-menu-item__image {
+    height: 150px;
   }
 }
 
