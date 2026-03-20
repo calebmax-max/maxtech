@@ -1,0 +1,354 @@
+
+
+
+
+import axios from 'axios';
+import React, { useEffect, useState } from 'react'
+import Loader from './Loader';
+import { useNavigate } from 'react-router-dom';
+
+const Getproducts = () => {
+  const formatDate = (date) => date.toISOString().split('T')[0];
+  const getTomorrow = (dateString) => {
+    const date = new Date(dateString);
+    date.setDate(date.getDate() + 1);
+    return formatDate(date);
+  };
+  const today = formatDate(new Date());
+
+  // Initialize hooks to help you manage the state of your application
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const[error, setError] = useState("");
+  const [quickCheckIn, setQuickCheckIn] = useState(today);
+  const [quickCheckOut, setQuickCheckOut] = useState(getTomorrow(today));
+  const [quickGuests, setQuickGuests] = useState("2");
+
+  // declare the navigate hook
+
+  const navigate  = useNavigate()
+
+  // Below we specify the image base url
+   const img_url = "https://calebtonny.alwaysdata.net/static/images/"
+
+  // Create a function to help you fetch the products from your API
+  const fetchProducts = async() =>{
+    try{
+
+      // Update the loading hook
+      setLoading(true) 
+
+      //.Interact with your end point for fetching the products
+      const response = await axios.get("https://calebtonny.alwaysdata.net/api/get_products")
+
+      //Update the products hook with the response given from the API
+      setProducts(response.data)
+
+      //set the loading hook back to default
+      setLoading(false)
+      
+
+
+    }
+    catch(error){
+      //step 8
+      // if there is an error 
+      // set the laoding hook back to default
+      setLoading(false)
+
+      // update the error hook with a message
+      setError(error.message)
+
+    }
+  }
+
+  // We shall use the useEffect hook. It enables us to automatically re-render new features incase of any changes
+  useEffect(() =>{
+    fetchProducts()
+  }, [])
+
+  // console.log(products)
+  const roomCollections = [
+    {
+      name: 'Deluxe Suite',
+      image:
+        'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      name: 'Ocean View Room',
+      image:
+        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      name: 'Family Room',
+      image:
+        'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      name: 'Executive Suite',
+      image:
+        'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80',
+    },
+  ];
+
+  const fallbackDishes = [
+    {
+      product_name: 'Gourmet Burger',
+      product_description: 'Juicy grilled burger served with crisp lettuce, tomato, and house sauce.',
+      product_cost: 950,
+      product_photo: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=80',
+      isFallback: true,
+    },
+    {
+      product_name: 'Grilled Steak',
+      product_description: 'Tender steak finished with herbs and a rich pan sauce for a premium dinner.',
+      product_cost: 1850,
+      product_photo: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80',
+      isFallback: true,
+    },
+    {
+      product_name: 'Pasta Primavera',
+      product_description: 'Creamy pasta tossed with garden vegetables and parmesan.',
+      product_cost: 1100,
+      product_photo: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?auto=format&fit=crop&w=900&q=80',
+      isFallback: true,
+    },
+    {
+      product_name: 'Seafood Platter',
+      product_description: 'A chef-curated seafood selection with fresh seasonal garnish.',
+      product_cost: 2200,
+      product_photo: 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=900&q=80',
+      isFallback: true,
+    },
+  ];
+
+  const featuredDishes = products.length > 0 ? products.slice(0, 4) : fallbackDishes;
+  const amenityHighlights = [
+    {
+      title: 'Luxury Accommodation',
+      text: 'Spacious suites, premium bedding, and calm interiors designed for restful stays.',
+    },
+    {
+      title: 'Signature Dining',
+      text: 'Freshly prepared meals, chef specials, and a warm restaurant atmosphere every day.',
+    },
+    {
+      title: 'Events & Meetings',
+      text: 'Elegant spaces for business meetings, family celebrations, and private dinners.',
+    },
+  ];
+
+  return (
+    <div className='hotel-page'>
+      <section className="hotel-hero" id="top">
+        <div className="hotel-hero__overlay">
+          <div className="hotel-hero__content">
+            <p className="hotel-hero__eyebrow">Luxury Stay And Fine Dining</p>
+            <h1>ELITE HOTELS</h1>
+            <h2>WELCOME</h2>
+            <div className="hotel-hero__divider"></div>
+            <p className="hotel-hero__subtitle">
+              Experience Luxury &amp; Fine Dining in One Place
+            </p>
+
+            <div className="hotel-hero__actions">
+              <button
+                className="hotel-action hotel-action--blue"
+                type="button"
+                onClick={() => navigate('/rooms')}
+              >
+                <span>Book a Room</span>
+                <span>&rsaquo;</span>
+              </button>
+              <button
+                className="hotel-action hotel-action--green"
+                type="button"
+                onClick={() => navigate('/dining')}
+              >
+                <span>Order Food</span>
+                <span>&rsaquo;</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="booking-panel" id="booking">
+        <h3>Quick Booking</h3>
+        <div className="booking-panel__grid">
+          <label className="booking-field">
+            <span>Check-In</span>
+            <input
+              type="date"
+              min={today}
+              value={quickCheckIn}
+              onChange={(e) => {
+                const nextCheckIn = e.target.value;
+                setQuickCheckIn(nextCheckIn);
+                if (quickCheckOut <= nextCheckIn) {
+                  setQuickCheckOut(getTomorrow(nextCheckIn));
+                }
+              }}
+            />
+          </label>
+
+          <label className="booking-field">
+            <span>Check-Out</span>
+            <input
+              type="date"
+              min={getTomorrow(quickCheckIn)}
+              value={quickCheckOut}
+              onChange={(e) => setQuickCheckOut(e.target.value)}
+            />
+          </label>
+
+          <label className="booking-field">
+            <span>Guests</span>
+            <select value={quickGuests} onChange={(e) => setQuickGuests(e.target.value)}>
+              <option value="1">1 Guest</option>
+              <option value="2">2 Guests</option>
+              <option value="4">4 Guests</option>
+            </select>
+          </label>
+
+          <button
+            className="booking-search"
+            type="button"
+            onClick={() => navigate('/rooms', {
+              state: {
+                checkIn: quickCheckIn,
+                checkOut: quickCheckOut,
+                guests: quickGuests,
+              },
+            })}
+          >
+            Search &rsaquo;
+          </button>
+        </div>
+      </section>
+
+      {loading && <Loader />}
+      {error && <h4 className="text-danger mt-4">{error}</h4>}
+
+      <section className="feature-sections">
+        <div className="feature-panel" id="rooms">
+          <div className="feature-panel__heading">
+            <span></span>
+            <h3>Featured Rooms</h3>
+            <span></span>
+          </div>
+
+          <div className="feature-card-grid">
+            {roomCollections.map((room) => (
+              <div className="feature-card" key={room.name}>
+                <img src={room.image} alt={room.name} className="feature-card__image" />
+                <div className="feature-card__body">
+                  <h5>{room.name}</h5>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button className="feature-cta feature-cta--blue" type="button">
+            View All Rooms &rsaquo;
+          </button>
+        </div>
+
+        <div className="feature-panel" id="dining">
+          <div className="feature-panel__heading">
+            <span></span>
+            <h3>Popular Dishes</h3>
+            <span></span>
+          </div>
+
+          <div className="feature-card-grid">
+            {featuredDishes.map((product) => (
+              <div className="feature-card feature-card--interactive" key={product.product_id || product.product_name}>
+                <img
+                  src={product.isFallback ? product.product_photo : img_url + product.product_photo}
+                  alt={product.product_name}
+                  className="feature-card__image"
+                />
+
+                <div className="feature-card__body">
+                  <h5>{product.product_name}</h5>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            className="feature-cta feature-cta--green"
+            type="button"
+            onClick={() => navigate('/dining')}
+          >
+            View Full Menu &rsaquo;
+          </button>
+        </div>
+      </section>
+
+      <section className="experience-section" id="experiences">
+        <div className="experience-section__intro">
+          <p className="experience-section__eyebrow">Why Guests Choose Us</p>
+          <h3>Comfort, cuisine, and service brought together in one experience.</h3>
+          <p>
+            From relaxing rooms to memorable dining, our hotel and restaurant system is built to
+            make every visit smooth, welcoming, and enjoyable.
+          </p>
+        </div>
+
+        <div className="experience-grid">
+          {amenityHighlights.map((item) => (
+            <div className="experience-card" key={item.title}>
+              <h4>{item.title}</h4>
+              <p>{item.text}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="events-showcase">
+          <div className="events-showcase__content">
+            <p className="visit-banner__label">Events &amp; Meetings</p>
+            <h4>Elegant spaces for business meetings, family celebrations, and private dinners.</h4>
+            <p>
+              Host productive conferences, intimate gatherings, and memorable social occasions in
+              beautifully prepared spaces with attentive hospitality.
+            </p>
+            <div className="events-showcase__meta">
+              <span>Up to 200 guests</span>
+              <span>Custom dining packages</span>
+              <span>Indoor &amp; garden setup</span>
+            </div>
+            <div className="events-showcase__actions">
+              <button
+                className="feature-cta feature-cta--green"
+                type="button"
+                onClick={() => navigate('/events')}
+              >
+                Book Your Event &rsaquo;
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="visit-banner">
+          <div>
+            <p className="visit-banner__label">Visit Information</p>
+            <h4>Open Daily for Room Bookings and Restaurant Service</h4>
+            <p>Reception: 24/7 | Restaurant Hours: 6:30 AM - 11:00 PM</p>
+          </div>
+          <button
+            className="feature-cta feature-cta--blue"
+            type="button"
+            onClick={() => navigate('/signin')}
+          >
+            Reserve Your Stay &rsaquo;
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+export default Getproducts;
+
