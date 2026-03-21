@@ -51,6 +51,7 @@ const Makepayment = () => {
   const [number, setNumber] = useState('');
   const [amount, setAmount] = useState(paymentItem ? String(paymentItem.amount) : '');
   const [preferredDate, setPreferredDate] = useState(today);
+  const [preferredTime, setPreferredTime] = useState('12:30');
   const [cartItems, setCartItems] = useState([]);
   const [selectedFoodId, setSelectedFoodId] = useState(allFoodCheckoutItems[0]?.id || '');
   const [selectedFoodQuantity, setSelectedFoodQuantity] = useState('1');
@@ -174,6 +175,7 @@ const Makepayment = () => {
         await submitFoodOrder({
           order_title: paymentItem.title,
           preferred_date: preferredDate,
+          preferred_time: preferredTime,
           total_amount: enteredAmount,
           payment_phone: number,
           items: cartItems.map((item) => ({
@@ -258,6 +260,11 @@ const Makepayment = () => {
                 <div className="payment-cart__date">
                   <span>Preferred Date</span>
                   <strong>{preferredDate}</strong>
+                </div>
+
+                <div className="payment-cart__date">
+                  <span>Preferred Time</span>
+                  <strong>{preferredTime}</strong>
                 </div>
 
                 {cartItems.map((item) => (
@@ -347,6 +354,7 @@ const Makepayment = () => {
             </label>
 
             {isFoodOrder && (
+              <>
               <label className="payment-field">
                 <span>Preferred Date</span>
                 <input
@@ -357,6 +365,17 @@ const Makepayment = () => {
                   onChange={(e) => setPreferredDate(e.target.value)}
                 />
               </label>
+
+              <label className="payment-field">
+                <span>Preferred Time</span>
+                <input
+                  type="time"
+                  required
+                  value={preferredTime}
+                  onChange={(e) => setPreferredTime(e.target.value)}
+                />
+              </label>
+              </>
             )}
 
             <label className="payment-field">

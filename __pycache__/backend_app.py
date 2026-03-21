@@ -51,6 +51,7 @@ def ensure_checkout_tables():
             id INT AUTO_INCREMENT PRIMARY KEY,
             order_title VARCHAR(255) NOT NULL,
             preferred_date DATE NOT NULL,
+            preferred_time TIME NOT NULL,
             total_amount DECIMAL(10, 2) NOT NULL,
             payment_phone VARCHAR(30) NOT NULL,
             items_json LONGTEXT NOT NULL,
@@ -58,6 +59,18 @@ def ensure_checkout_tables():
         )
         """
     )
+
+    cursor.execute("SHOW COLUMNS FROM food_orders LIKE 'preferred_time'")
+    preferred_time_column = cursor.fetchone()
+
+    if not preferred_time_column:
+        cursor.execute(
+            """
+            ALTER TABLE food_orders
+            ADD COLUMN preferred_time TIME NOT NULL
+            AFTER preferred_date
+            """
+        )
 
     cursor.execute(
         """
@@ -423,6 +436,7 @@ def food_orders():
 
     order_title = payload.get("order_title")
     preferred_date = payload.get("preferred_date")
+    preferred_time = payload.get("preferred_time")
     total_amount = payload.get("total_amount", 0)
     payment_phone = payload.get("payment_phone")
     items = payload.get("items", [])
@@ -431,12 +445,13 @@ def food_orders():
     cursor = connection.cursor()
     sql = """
         INSERT INTO food_orders
-        (order_title, preferred_date, total_amount, payment_phone, items_json)
-        VALUES (%s, %s, %s, %s, %s)
+        (order_title, preferred_date, preferred_time, total_amount, payment_phone, items_json)
+        VALUES (%s, %s, %s, %s, %s, %s)
     """
     data = (
         order_title,
         preferred_date,
+        preferred_time,
         total_amount,
         payment_phone,
         json.dumps(items),
@@ -527,3 +542,10 @@ def mpesa_payment():
 
 # Run the application  
 # app.run(debug=True)
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    if path.startswith('api/'):
+        return jsonify({"error": "API route not found"}), 404
+    return send_from_directory('../build', 'index.html')

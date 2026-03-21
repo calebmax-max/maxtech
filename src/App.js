@@ -3,7 +3,7 @@
 
 
 import './App.css';
-import { HashRouter as Router, Routes, Route, Link, NavLink, useLocation } from 'react-router-dom';
+import {BrowserRouter, Routes, Route, Link, NavLink, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Getproducts from './components/Home';
 import Signup from './components/Signup';
@@ -128,9 +128,9 @@ function AppLayout() {
 
 function App() {
   return (
-    <Router>
+    <BrowserRouter>
       <AppLayout />
-    </Router>
+    </BrowserRouter>
   );
 }
 
