@@ -7,6 +7,12 @@ import React, { useEffect, useState } from 'react'
 import Loader from './Loader';
 import { useNavigate } from 'react-router-dom';
 
+
+//formatDate — Converts a Date object to "YYYY-MM-DD" string format (for <input type="date">)
+//new Date().toISOString() → "2025-07-10T12:00:00.000Z"
+//.split('T')[0] → "2025-07-10"
+//getTomorrow — Takes a date string, adds 1 day, and returns the formatted result
+//today — Today's date as a string
 const Getproducts = () => {
   const formatDate = (date) => date.toISOString().split('T')[0];
   const getTomorrow = (dateString) => {
@@ -91,6 +97,8 @@ const Getproducts = () => {
     },
   ];
 
+
+  //Backup dishes if the API returns no data
   const fallbackDishes = [
     {
       product_name: 'Gourmet Burger',
@@ -222,7 +230,7 @@ const Getproducts = () => {
               },
             })}
           >
-            Search &rsaquo;
+           Search &rsaquo; {/* ;state object being passed forward when navigating — it’s essentially the payload of booking details that the next page will consume. In your case */}
           </button>
         </div>
       </section>

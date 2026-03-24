@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Loader from './Loader';
+
+//submitEventBooking → API function that sends event booking details to your backend.
 import { submitEventBooking } from '../utils/eventBookingApi';
 
 const baseRates = {
@@ -11,6 +13,10 @@ const baseRates = {
   'Family Celebration': 28000,
 };
 
+
+
+//Stores all form fields: name, email, phone, event type, number of guests, date.
+//Also tracks UI state: loading, success message, error message.
 const EventInquiry = () => {
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -23,8 +29,13 @@ const EventInquiry = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
+  //useMemo ensures the calculation updates only when eventType or guests change.
   const estimatedPrice = useMemo(() => {
+    //Converts the guests input (usually a string from an input field) into a number.
+//If guests is empty or invalid, || 0 ensures it defaults to 0.
     const guestCount = Number(guests) || 0;
+
+    //|| 15000 → if eventType is invalid or missing, use default rate 15,000.
     const baseRate = baseRates[eventType] || 15000;
     const guestCharge = guestCount * 850;
 
@@ -40,6 +51,18 @@ const EventInquiry = () => {
       'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80',
   });
 
+
+
+//   Prevent default form submission (e.preventDefault()).
+// Set loading state to show Loader.
+// Build guestCount, checkoutItem, and payload for API.
+// Call API (submitEventBooking) to save booking details.
+// On success:
+// Show success message.
+// Navigate to /makepayment with checkout data.
+// On failure:
+// If API unreachable (404), still allow user to proceed to payment.
+// Otherwise, show an error message.
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -165,6 +188,8 @@ const EventInquiry = () => {
             {guests && (
               <div className="event-estimate">
                 <span>Estimated Event Price</span>
+{/* 
+                toLocaleString() is a built-in JavaScript method available on several object types that converts a value to a locale-sensitive string representation */}
                 <strong>KSh {estimatedPrice.toLocaleString()}</strong>
                 <p>This estimate is based on your event type and guest count.</p>
               </div>

@@ -3,6 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Loader from './Loader';
 import { submitStayBooking } from '../utils/checkoutApi';
 
+
+//These are constants used to calculate totals and show offers to users.
+
 const bookingOffers = [
   {
     title: 'Weekend Escape',
@@ -51,6 +54,9 @@ const requestRates = {
   'late-checkout': 1800,
 };
 
+
+//formatDate → converts a Date object to YYYY-MM-DD string (for input fields).
+//getTomorrow → returns the next day after a given date (used for default check-out).
 const formatDate = (date) => date.toISOString().split('T')[0];
 
 const getTomorrow = (dateString) => {
@@ -58,7 +64,9 @@ const getTomorrow = (dateString) => {
   date.setDate(date.getDate() + 1);
   return formatDate(date);
 };
-
+//Holds the user input for the booking form.
+//Also holds UI state like loading, success, and error messages.
+//Defaults are set using either previous page state (location.state) or today’s date.
 const Bookings = () => {
   const today = formatDate(new Date());
   const location = useLocation();
@@ -77,17 +85,28 @@ const Bookings = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
+
+
+//Calculates number of nights between check-in and check-out.
+//useMemo ensures the calculation only happens when checkIn or checkOut change.
+//Minimum 1 night is enforced.
   const nights = useMemo(() => {
-    const checkInDate = new Date(checkIn);
+    const checkInDate = new Date(checkIn);// Converts the checkIn string (like "2026-03-23") into a JavaScript Date object.
+                                            //Example: "2026-03-23" → Tue Mar 23 2026 00:00:00 GMT+0300.
     const checkOutDate = new Date(checkOut);
-    const difference = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+    const difference = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));//math.ceil rounds up to the nearest integer
+    //(1000 * 60 * 60 * 24)  converts miliseconds to dates bcs js counts dates in milliseconds
     return difference > 0 ? difference : 1;
   }, [checkIn, checkOut]);
 
+
+
+  //Computes total cost of booking:
   const estimatedTotal = useMemo(() => {
     return (roomRates[roomType] + mealPlanRates[mealPlan]) * nights + requestRates[specialRequest];
   }, [roomType, mealPlan, specialRequest, nights]);
 
+  //checkoutItem is an object representing the booking details that can be sent to a payment page.
   const checkoutItem = {
     title: 'Custom Stay Booking',
     description: `Name: ${customerName || 'Not provided'}, Phone: ${phoneNumber || 'Not provided'}, Room: ${roomType}, Guests: ${guests}, Meal Plan: ${mealPlan}, Request: ${specialRequest}, Check-In: ${checkIn}, Check-Out: ${checkOut}, Nights: ${nights}`,
@@ -107,6 +126,20 @@ const Bookings = () => {
     },
   };
 
+
+
+
+//   //Step by step:
+
+// Set loading state and clear previous messages.
+// Call API submitStayBooking() to send booking data to the server.
+// On success:
+// Show success message
+// Navigate to /makepayment page and pass checkoutItem in state
+// On error:
+// Show user-friendly error message
+// Handle server unreachable or API error
+// Finally, stop loading spinner.
   const handleContinueToPayment = async () => {
     setLoading(true);
     setSuccess('');
@@ -145,6 +178,11 @@ const Bookings = () => {
   };
 
   return (
+
+
+    //Hero section of the page
+//Introduces the user to the booking page
+//Gives instructions / motivation for booking
     <section className="bookings-page">
       <div className="bookings-page__hero">
         <p className="bookings-page__eyebrow">Plan Your Stay</p>
@@ -154,10 +192,17 @@ const Bookings = () => {
           family trips, and special occasions.
         </p>
       </div>
-
+{/* Two main parts side by side:
+bookings-form-card → the form where user enters booking details
+bookings-summary-card → shows perks and other information */}
       <div className="bookings-layout">
         <div className="bookings-form-card">
           <div className="bookings-form-card__heading">
+
+
+
+
+            {/* Reservation Form (bookings-form-card) */}
             <h3>Reservation Details</h3>
             <p>Choose your stay preferences and continue to confirm your booking.</p>
           </div>
@@ -247,7 +292,9 @@ const Bookings = () => {
               </select>
             </label>
           </div>
-
+{/* Shows calculated total cost
+Uses nights and estimatedTotal computed in component
+Updates automatically when user changes room, dates, meal plan, or requests */}
           <div className="bookings-total">
             <span>Estimated Total</span>
             <small>{nights} night{nights > 1 ? 's' : ''}</small>
@@ -259,6 +306,8 @@ const Bookings = () => {
           {error && <div className="payment-message payment-message--error">{error}</div>}
 
           <button
+//           Calls handleContinueToPayment() when clicked
+// Disabled while loading to prevent multiple submissions
             type="button"
             className="bookings-submit"
             onClick={handleContinueToPayment}
@@ -268,6 +317,7 @@ const Bookings = () => {
           </button>
         </div>
 
+{/* Booking Summary / Perks (bookings-summary-card) */}
         <aside className="bookings-summary-card">
           <p className="bookings-summary-card__label">Why Book Here</p>
           <h3>Comfortable stays with flexible packages.</h3>
@@ -286,6 +336,11 @@ const Bookings = () => {
 
       <div className="bookings-offers">
         {bookingOffers.map((offer) => (
+//           .map() is a method on arrays that:
+
+// Goes through every element of the array
+// Runs a function on each element
+// Returns a new array with the results
           <article className="bookings-offer-card" key={offer.title}>
             <img className="bookings-offer-card__image" src={offer.image} alt={offer.title} />
             <p className="bookings-offer-card__tag">Package Offer</p>

@@ -1,8 +1,15 @@
+
+//This is a React functional component that displays the full details page for a single hotel room, allowing users to select dates and proceed to booking/payment.
 import React, { useMemo, useState } from 'react';
+//Extracts URL parameters (the room slug)
 import { Link, useParams } from 'react-router-dom';
+//toRoomSlug	Function that converts a room name to a URL-friendly slug (e.g., "Deluxe Suite" → "deluxe-suite")
 import { roomOptions, toRoomSlug } from './Rooms';
 import { isRoomBookedForRange } from '../utils/roomBookingStorage';
 
+
+
+//formats dates to "YYYY-MM-DD" and computes the next day.
 const formatDate = (date) => date.toISOString().split('T')[0];
 
 const getTomorrow = (dateString) => {
@@ -12,12 +19,21 @@ const getTomorrow = (dateString) => {
 };
 
 const RoomDetails = () => {
+
+  // URL: /rooms/deluxe-suite
+  //             ↓
+  //       useParams() extracts: roomSlug = "deluxe-suite"
+  //             ↓
+  //       Searches roomOptions array:
+  //       roomOptions.find(item => toRoomSlug("Deluxe Suite") === "deluxe-suite")
+  //             ↓
+  //       Returns the matching room object (or undefined)
   const { roomSlug } = useParams();
   const room = roomOptions.find((item) => toRoomSlug(item.name) === roomSlug);
   const today = formatDate(new Date());
   const [checkIn, setCheckIn] = useState(today);
   const [checkOut, setCheckOut] = useState(getTomorrow(today));
-  const roomRate = room ? Number(room.price.replace(/[^0-9]/g, '')) : 0;
+  const roomRate = room ? Number(room.price.replace(/[^0-9]/g, '')) : 0;//The regex /[^0-9]/g means: remove everything that is NOT a digit.
   const nights = useMemo(() => {
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);

@@ -126,6 +126,14 @@ function AppLayout() {
   );
 }
 
+//<BrowserRouter>Comes from react-router-dom.
+//It wraps your entire app and enables client‑side routing using the browser’s history API.
+//This means you can navigate between pages without full page reloads.
+
+
+//<AppLayout>This is your main layout component.
+//It likely contains your routes (<Routes> and <Route> components) and shared UI (like a navbar, footer, or sidebar).
+//By placing it inside BrowserRouter, all navigation inside AppLayout is powered by React Router.
 function App() {
   return (
     <BrowserRouter>

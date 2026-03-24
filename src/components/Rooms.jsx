@@ -1,11 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { getRoomBookings, getStoredRoomBookings, isRoomBookedForRange } from '../utils/roomBookingStorage';
-
+//toRoomSlug — Converts room name to URL slug
 export const toRoomSlug = (name) =>
+
+//   "Deluxe King Room"
+//     ↓ .toLowerCase()
+// "deluxe king room"
+//     ↓ .replace(/[^a-z0-9]+/g, '-')   → Replace non-alphanumeric chars with hyphens
+// "deluxe-king-room"
+//     ↓ .replace(/^-|-$/g, '')          → Trim leading/trailing hyphens
+// "deluxe-king-room"
   name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const getGuestCount = (guestLabel) => {
+  // getGuestCount — Extracts number from guest label
+  //String(guestLabel) — Safely converts to string
+//.match(/\d+/) — Finds first sequence of digits
+//?.[0] — Optional chaining (returns undefined if no match)
+//|| 0 — Fallback to 0
   const parsed = Number(String(guestLabel).match(/\d+/)?.[0] || 0);
   return parsed;
 };

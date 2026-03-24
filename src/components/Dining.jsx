@@ -1,5 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+
+//createFoodCheckoutItem → utility function that formats food orders into a checkout-ready object.
+//diningCategories & featuredPlates → data arrays representing your food menu and highlighted dishes.
 import { createFoodCheckoutItem, diningCategories, featuredPlates } from '../data/diningMenu';
 
 const Dining = () => {
@@ -23,7 +26,8 @@ const Dining = () => {
             elevated restaurant experience.
           </p>
         </div>
-
+{/* .map() → loops through featuredPlates array and creates a card for each plate.
+index % 2 === 1 ? 'dining-showcase-card--reverse' : '' → alternates layout for a staggered design. */}
         <div className="dining-showcase__grid">
           {featuredPlates.map((plate, index) => (
             <article
@@ -60,6 +64,16 @@ const Dining = () => {
           ))}
         </div>
       </section>
+
+
+      {/* .map() loops through diningCategories → each category becomes a category card.
+Inside each category, .map() loops through category.items → displays each menu item.
+Each menu item shows:
+Image
+Name
+Category
+Price
+Order Now button → sends the item to payment page via createFoodCheckoutItem. */}
 
       <div className="dining-categories">
         {diningCategories.map((category) => (

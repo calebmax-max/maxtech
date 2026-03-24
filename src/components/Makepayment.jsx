@@ -1,15 +1,29 @@
 import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
+//useLocation	Access data passed from previous pages (room, food, booking)
 import { useLocation, useNavigate } from 'react-router-dom';
 import { allFoodCheckoutItems } from '../data/diningMenu';
+//submitFoodOrder, submitRoomBooking, submitStayBooking: Utility functions for sending checkout requests.
 import { submitFoodOrder, submitRoomBooking, submitStayBooking } from '../utils/checkoutApi';
 import { saveRoomBooking } from '../utils/roomBookingStorage';
 import Loader from './Loader';
 
+//Defines which item types count as food-related payments.
+//Using a Set makes membership checks efficient.
 const FOOD_PAYMENT_TYPES = new Set(['Food Order', 'Featured Dish']);
 
+//Checks if a given item is a food-related payment type.
+//Uses optional chaining (item?.type) to avoid errors if item is null or undefined.
 const isFoodPaymentItem = (item) => FOOD_PAYMENT_TYPES.has(item?.type);
 
+
+//Ensures every cart item has a consistent structure.
+//Generates a fallback id if one isn’t provided (slugified from type + title).
+//Defaults:
+//amount → 0 if missing.
+//type → "Food Order".
+//category → "Menu Item".
+//quantity → 1 unless specified.
 const normalizeCartItem = (item, quantity = 1) => ({
   id: item.id || `${item.type}-${item.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
   title: item.title,
@@ -21,13 +35,19 @@ const normalizeCartItem = (item, quantity = 1) => ({
   quantity,
 });
 
+
+//Converts a Date object into a YYYY-MM-DD string.
+//Useful for storing or displaying booking dates.
 const formatDate = (date) => date.toISOString().split('T')[0];
 
 const Makepayment = () => {
   const location = useLocation();
+  //This pulls data passed from the previous page (like a selected product or checkout item).
   const { product, checkoutItem, paymentNotice } = location.state || {};
   const today = formatDate(new Date());
-
+//If checkoutItem exists, use it directly.
+//If only product exists, build a simplified object with title, description, image, cost, and mark it as "Food Order".
+//Otherwise, return null.
   const paymentItem = useMemo(() => {
     if (checkoutItem) {
       return checkoutItem;
@@ -60,6 +80,10 @@ const Makepayment = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    //If it’s a food order, normalize and add the item to the cart.
+//Otherwise, clear the cart.
+
+
     if (isFoodOrder && paymentItem) {
       setCartItems([normalizeCartItem(paymentItem)]);
       setSelectedFoodId(paymentItem.id || allFoodCheckoutItems[0]?.id || '');
@@ -71,11 +95,14 @@ const Makepayment = () => {
   }, [isFoodOrder, paymentItem]);
 
   const foodTotal = useMemo(
+
+    //Sums up all items in the cart.
     () => cartItems.reduce((total, item) => total + item.amount * item.quantity, 0),
     [cartItems]
   );
 
   useEffect(() => {
+    //Keeps the displayed amount in sync with cart totals.
     if (isFoodOrder) {
       setAmount(foodTotal ? String(foodTotal) : '');
       return;
@@ -88,6 +115,7 @@ const Makepayment = () => {
   const selectedFood = allFoodCheckoutItems.find((item) => item.id === selectedFoodId) || null;
 
   const updateCartQuantity = (itemId, nextQuantity) => {
+    //Ensures quantity is at least 1, then updates the cart.
     const quantity = Math.max(1, Number(nextQuantity) || 1);
     setCartItems((currentItems) =>
       currentItems.map((item) => (item.id === itemId ? { ...item, quantity } : item))
@@ -95,9 +123,11 @@ const Makepayment = () => {
   };
 
   const removeCartItem = (itemId) => {
+    //Deletes an item from the cart.
     setCartItems((currentItems) => currentItems.filter((item) => item.id !== itemId));
   };
 
+  //Prepares to add a selected food item to the cart
   const addFoodToCart = () => {
     if (!selectedFood) {
       return;
@@ -116,6 +146,10 @@ const Makepayment = () => {
         );
       }
 
+
+      //This adds the currently selected food item into the cart.
+//It uses normalizeCartItem to ensure the item has a consistent structure (id, title, amount, etc.).
+//After adding, it resets the quantity selector back to "1" so the user doesn’t accidentally add multiple items next time.
       return [...currentItems, normalizeCartItem(selectedFood, quantity)];
     });
 
@@ -333,7 +367,7 @@ const Makepayment = () => {
           <div className="payment-form-card__header">
             <p className="payment-form-card__eyebrow">Payment Details</p>
             <h3>Complete Payment</h3>
-            <p>Enter the exact total shown and your phone number to receive an STK push on your phone.</p>
+            <p>Enter the exact total shown and you will receive a message to complete the payment.</p>
           </div>
 
           {paymentNotice && <div className="payment-message payment-message--success">{paymentNotice}</div>}
