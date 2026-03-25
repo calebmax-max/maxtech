@@ -6,6 +6,7 @@ import axios from 'axios';
 import React, { useEffect, useState } from 'react'
 import Loader from './Loader';
 import { useNavigate } from 'react-router-dom';
+import { buildApiUrl } from '../utils/api';
 
 
 //formatDate — Converts a Date object to "YYYY-MM-DD" string format (for <input type="date">)
@@ -34,8 +35,7 @@ const Getproducts = () => {
 
   const navigate  = useNavigate()
 
-  // Below we specify the image base url
-   const img_url = "https://calebtonny.alwaysdata.net/static/images/"
+  const imageBaseUrl = `${window.location.origin}/static/images/`;
 
   // Create a function to help you fetch the products from your API
   const fetchProducts = async() =>{
@@ -45,7 +45,7 @@ const Getproducts = () => {
       setLoading(true) 
 
       //.Interact with your end point for fetching the products
-      const response = await axios.get("https://calebtonny.alwaysdata.net/api/get_products")
+      const response = await axios.get(buildApiUrl('/get_products'))
 
       //Update the products hook with the response given from the API
       setProducts(response.data)
@@ -273,7 +273,7 @@ const Getproducts = () => {
             {featuredDishes.map((product) => (
               <div className="feature-card feature-card--interactive" key={product.product_id || product.product_name}>
                 <img
-                  src={product.isFallback ? product.product_photo : img_url + product.product_photo}
+                  src={product.isFallback ? product.product_photo : imageBaseUrl + product.product_photo}
                   alt={product.product_name}
                   className="feature-card__image"
                 />
@@ -348,7 +348,7 @@ const Getproducts = () => {
           <button
             className="feature-cta feature-cta--blue"
             type="button"
-            onClick={() => navigate('/signin')}
+            onClick={() => navigate('/signup')}
           >
             Reserve Your Stay &rsaquo;
           </button>

@@ -1,11 +1,12 @@
 
 //This is a React functional component that displays the full details page for a single hotel room, allowing users to select dates and proceed to booking/payment.
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 //Extracts URL parameters (the room slug)
 import { Link, useParams } from 'react-router-dom';
 //toRoomSlug	Function that converts a room name to a URL-friendly slug (e.g., "Deluxe Suite" → "deluxe-suite")
-import { roomOptions, toRoomSlug } from './Rooms';
+import { toRoomSlug } from './Rooms';
 import { isRoomBookedForRange } from '../utils/roomBookingStorage';
+import { fetchManagedRooms, getManagedRooms } from '../utils/adminCatalog';
 
 
 
@@ -29,7 +30,8 @@ const RoomDetails = () => {
   //             ↓
   //       Returns the matching room object (or undefined)
   const { roomSlug } = useParams();
-  const room = roomOptions.find((item) => toRoomSlug(item.name) === roomSlug);
+  const [rooms, setRooms] = useState(() => getManagedRooms());
+  const room = rooms.find((item) => toRoomSlug(item.name) === roomSlug);
   const today = formatDate(new Date());
   const [checkIn, setCheckIn] = useState(today);
   const [checkOut, setCheckOut] = useState(getTomorrow(today));
@@ -42,6 +44,22 @@ const RoomDetails = () => {
   }, [checkIn, checkOut]);
   const totalAmount = roomRate * nights;
   const isBooked = room ? isRoomBookedForRange(room.name, checkIn, checkOut) : false;
+
+  useEffect(() => {
+    let active = true;
+
+    fetchManagedRooms()
+      .then((nextRooms) => {
+        if (active) {
+          setRooms(nextRooms);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (!room) {
     return (

@@ -1,4 +1,4 @@
-export const diningCategories = [
+export const defaultDiningCategories = [
   {
     title: 'Breakfast Favorites',
     description: 'Fresh morning plates prepared for light starts and hearty hotel breakfasts.',
@@ -145,7 +145,7 @@ export const diningCategories = [
   },
 ];
 
-export const featuredPlates = [
+export const defaultFeaturedPlates = [
   {
     title: 'Chef Signature Seafood Platter',
     price: 'KSh 3,450',
@@ -193,7 +193,7 @@ export const createFoodCheckoutItem = ({ title, description, image, price, type,
 });
 
 export const allFoodCheckoutItems = [
-  ...featuredPlates.map((plate) =>
+  ...defaultFeaturedPlates.map((plate) =>
     createFoodCheckoutItem({
       title: plate.title,
       description: plate.description,
@@ -203,7 +203,7 @@ export const allFoodCheckoutItems = [
       category: plate.tag,
     })
   ),
-  ...diningCategories.flatMap((category) =>
+  ...defaultDiningCategories.flatMap((category) =>
     category.items.map((item) =>
       createFoodCheckoutItem({
         title: item.name,

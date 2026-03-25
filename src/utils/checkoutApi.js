@@ -1,19 +1,19 @@
 import axios from 'axios';
+import { buildApiUrl } from './api';
 
 const ROOM_BOOKING_ENDPOINTS = [
   '/api/room_bookings',
-  'https://calebtonny.alwaysdata.net/api/room_bookings',
+  buildApiUrl('/room_bookings'),
 ];
 
 const FOOD_ORDER_ENDPOINTS = [
   '/api/food_orders',
-  'https://calebtonny.alwaysdata.net/api/food_orders',
+  buildApiUrl('/food_orders'),
 ];
 
 const STAY_BOOKING_ENDPOINTS = [
   '/api/stay_bookings',
-  'https://calebtonny.alwaysdata.net/api/stay_bookings',
-  'https://calebtonny.alwaysdata.net/stay_bookings.php',
+  buildApiUrl('/stay_bookings'),
 ];
 
 const postCheckoutData = async (endpoints, payload) => {

@@ -1,11 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 //createFoodCheckoutItem → utility function that formats food orders into a checkout-ready object.
 //diningCategories & featuredPlates → data arrays representing your food menu and highlighted dishes.
-import { createFoodCheckoutItem, diningCategories, featuredPlates } from '../data/diningMenu';
+import { createFoodCheckoutItem } from '../data/diningMenu';
+import { fetchManagedDiningCatalog, getManagedDiningCatalog } from '../utils/adminCatalog';
 
 const Dining = () => {
+  const [catalog, setCatalog] = useState(() => getManagedDiningCatalog());
+  const { categories: diningCategories, featuredPlates } = catalog;
+
+  useEffect(() => {
+    let active = true;
+
+    fetchManagedDiningCatalog()
+      .then((nextCatalog) => {
+        if (active) {
+          setCatalog(nextCatalog);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
   return (
     <section className="dining-page">
       <div className="dining-page__hero">

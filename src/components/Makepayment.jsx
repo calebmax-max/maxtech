@@ -2,9 +2,10 @@ import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
 //useLocation	Access data passed from previous pages (room, food, booking)
 import { useLocation, useNavigate } from 'react-router-dom';
-import { allFoodCheckoutItems } from '../data/diningMenu';
 //submitFoodOrder, submitRoomBooking, submitStayBooking: Utility functions for sending checkout requests.
 import { submitFoodOrder, submitRoomBooking, submitStayBooking } from '../utils/checkoutApi';
+import { buildApiUrl } from '../utils/api';
+import { fetchManagedDiningCatalog, getManagedFoodCheckoutItems } from '../utils/adminCatalog';
 import { saveRoomBooking } from '../utils/roomBookingStorage';
 import Loader from './Loader';
 
@@ -41,6 +42,7 @@ const normalizeCartItem = (item, quantity = 1) => ({
 const formatDate = (date) => date.toISOString().split('T')[0];
 
 const Makepayment = () => {
+  const [allFoodCheckoutItems, setAllFoodCheckoutItems] = useState(() => getManagedFoodCheckoutItems());
   const location = useLocation();
   //This pulls data passed from the previous page (like a selected product or checkout item).
   const { product, checkoutItem, paymentNotice } = location.state || {};
@@ -80,6 +82,22 @@ const Makepayment = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let active = true;
+
+    fetchManagedDiningCatalog()
+      .then(() => {
+        if (active) {
+          setAllFoodCheckoutItems(getManagedFoodCheckoutItems());
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     //If it’s a food order, normalize and add the item to the cart.
 //Otherwise, clear the cart.
 
@@ -92,7 +110,7 @@ const Makepayment = () => {
 
     setCartItems([]);
     setSelectedFoodId(allFoodCheckoutItems[0]?.id || '');
-  }, [isFoodOrder, paymentItem]);
+  }, [allFoodCheckoutItems, isFoodOrder, paymentItem]);
 
   const foodTotal = useMemo(
 
@@ -182,7 +200,7 @@ const Makepayment = () => {
       formdata.append('amount', enteredAmount);
 
       const response = await axios.post(
-        'https://calebtonny.alwaysdata.net/api/mpesa_payment',
+        buildApiUrl('/api/payment'),
         formdata
       );
 

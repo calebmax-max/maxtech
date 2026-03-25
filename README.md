@@ -1,4 +1,28 @@
-# Getting Started with Create React App
+# maxtech
+
+## Local Development
+
+Run the Flask API and React app in separate terminals:
+
+```powershell
+npm run start:api
+```
+
+```powershell
+npm start
+```
+
+React runs on `http://localhost:3000`.
+
+Flask runs on `http://127.0.0.1:5000` and the API health check is:
+
+```txt
+http://127.0.0.1:5000/api/debug/version
+```
+
+The local Flask backend is the part that connects to the alwaysdata MySQL database.
+
+## Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
@@ -68,4 +92,3 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-# maxtech

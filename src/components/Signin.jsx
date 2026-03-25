@@ -1,122 +1,120 @@
 import axios from 'axios';
-import React, { useState } from 'react'
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { buildApiUrl } from '../utils/api';
+
+// ✅ GLOBAL AXIOS CONFIG (important)
+axios.defaults.withCredentials = true;
 
 const Signin = () => {
-  // Define the two hooks for capturing/ storing the users input
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState('');
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
-  //Declare the three additional hooks
-  const [loading, setLoading] = useState("");
-  const [error, setError] = useState("");
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
 
-  //Below we have the useNavigate hook to redirect us to another pagenin successful login/signin
-  const navigate = useNavigate("");
-
-  // below is the function to handle the signin action
-  const handlesubmit = async(e) => {
-    //prevent the site from reloading
-    e.preventDefault()
-
-    //update the loading hook with a message
-    setLoading("Please wait while we authenticate your account.")
-
-    try{
-      // Create a formData object that will hold the email and the password
-      const formdata = new FormData()
-      // Insert / append the email and the password on the FormData created
-      formdata.append("email", email)
-      formdata.append("password", password)
-
-      // Interact with axios for the response
-      const response = await axios.post("https://calebtonny.alwaysdata.net/api/signin",formdata)
-
-      //set the loading hook back to default
-      setLoading("");
-
-      // check whether the user exists as part of the response from the API
-      if(response.data.user){
-        // if the user is there, definitely the details entered durin signin are correct
-        // if it is successful let a person get redirected to another page
-        // Store user details in local storage
-        localStorage.setItem("user", JSON.stringify(response.data.user));
-        navigate("/")
-
-      }
-      else{
-        // user is not found , that means the credentials entered on the form are incorrect
-        setError("Login failed. Please try again...")
-      }
-
+    if (!email.trim() || !password.trim()) {
+      setError('Email and password are required');
+      return;
     }
-    catch(error){
 
-      // set loading back to default
-      setLoading("")
-      //update the error hook with a message
-      setError("Oops, something went wrong. Try again...")
+    setLoading('Signing you in...');
+
+    try {
+      // ✅ USE JSON (cleaner)
+      const payload = {
+        email: email.trim().toLowerCase(),
+        password: password.trim()
+      };
+
+      const response = await axios.post(
+        buildApiUrl('/api/signin'), // ✅ CORRECT ROUTE
+        payload,
+        {
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      setLoading('');
+      setSuccess(response.data.message);
+
+      setTimeout(() => {
+        navigate('/');
+      }, 900);
+
+    } catch (requestError) {
+      setLoading('');
+      setError(
+        requestError.response?.data?.message || "Something went wrong"
+      );
     }
-  }
+  };
+
   return (
     <section className="auth-page auth-page--signin">
       <div className="auth-shell">
         <div className="auth-shell__panel">
           <p className="auth-shell__eyebrow">Welcome Back</p>
-          <h1>Sign in and continue your stay with ease.</h1>
+          <h1>Sign in and continue planning your next stay.</h1>
           <p className="auth-shell__lead">
-            Access your bookings, room choices, and dining plans from one smooth account
-            experience.
+            Access your account to move faster through room reservations,
+            dining requests, and future hotel bookings.
           </p>
 
           <div className="auth-shell__highlights">
-            <span>Fast sign in</span>
-            <span>Booking access</span>
-            <span>Secure checkout</span>
+            <span>Quick access</span>
+            <span>Secure sign-in</span>
+            <span>Booking ready</span>
           </div>
         </div>
 
         <div className="auth-card">
           <div className="auth-card__header">
-            <p className="auth-card__eyebrow">Account Access</p>
+            <p className="auth-card__eyebrow">Returning Guest</p>
             <h2>Sign In</h2>
-            <p>Enter your details below to continue.</p>
+            <p>Enter your email and password to access your account.</p>
           </div>
 
           {loading && <div className="auth-alert auth-alert--info">{loading}</div>}
+          {success && <div className="auth-alert auth-alert--success">{success}</div>}
           {error && <div className="auth-alert auth-alert--error">{error}</div>}
 
-          <form className="auth-form auth-form--signin" onSubmit={handlesubmit}>
-            <label className="auth-field auth-field--signin">
+          <form className="auth-form auth-form--signin" onSubmit={handleSubmit}>
+            <label className="auth-field">
               <span>Email Address</span>
               <input
                 type="email"
-                placeholder='Enter your email'
-                required
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
               />
             </label>
 
-            <label className="auth-field auth-field--signin">
+            <label className="auth-field">
               <span>Password</span>
               <div className="auth-password">
                 <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder='Enter your password'
-                  required
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
                   value={password}
-                  onChange={(e)=> setPassword(e.target.value)}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                 />
                 <button
                   type="button"
-                  className="auth-password__toggle"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword(prev => !prev)}
                 >
-                  {showPassword ? "Hide" : "Show"}
+                  {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
             </label>
@@ -125,16 +123,14 @@ const Signin = () => {
               Sign In
             </button>
 
-            <p className="auth-switch">
-              Don`t have an account? <Link to="/signup">Register</Link>
+            <p>
+              Don’t have an account? <Link to="/signup">Create one</Link>
             </p>
           </form>
         </div>
       </div>
     </section>
-  )
-}
+  );
+};
 
 export default Signin;
-
-//HOw can you store the users details in the local storage

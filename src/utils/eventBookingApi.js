@@ -1,10 +1,11 @@
 import axios from 'axios';
+import { buildApiUrl } from './api';
 
 const EVENT_BOOKING_ENDPOINTS = [
   '/api/event-booking',
-  'https://calebtonny.alwaysdata.net/api/event-booking',
+  buildApiUrl('/event-booking'),
   '/api/event_bookings',
-  'https://calebtonny.alwaysdata.net/api/event_bookings',
+  buildApiUrl('/event_bookings'),
 ];
 
 const buildFormData = (payload) => {

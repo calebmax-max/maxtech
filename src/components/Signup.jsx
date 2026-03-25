@@ -1,77 +1,90 @@
 import axios from 'axios';
-import React, { useState } from 'react'
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { buildApiUrl } from '../utils/api';
+
+// ✅ Ensure cookies/session work across domains
+axios.defaults.withCredentials = true;
 
 const Signup = () => {
-  // initialize the hooks
-  const[username, setUsername] = useState("");
-  const[email, setEmail] =useState("");
-  const[password, setPassword] =useState("");
-  const[phone, setPhone] =useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
- 
-// Define the three states an application will move to
-const [loading, setLoading] = useState("");
-const [success, setSuccess] = useState("");
-const [error, setError] = useState("");
 
-// Below is the funtion that will handle the submit action
-const handleSubmit =  async (e) =>{
-  // Below we prevent our site from reloading
-  e.preventDefault()
+  const [loading, setLoading] = useState("");
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
 
-  // Update our loading hook with a message that will be displayed to the users who are trying to register
-  setLoading("Please wait as registration is in progress...")
-  
-  try{
-    //Create a form-data object that will enable you to capture the four details entered on the form
-    const formdata = new FormData();
-    // Insert the four details(username , email, password, phone) in terms of key-value pair
-    formdata.append("username", username);
-    formdata.append("email", email);
-    formdata.append("password", password);
-    formdata.append("phone", phone);
-    // BY use of axios,we can access the method post
-    const response =await axios.post("https://calebtonny.alwaysdata.net/api/signup", formdata)
+  const passwordHint = 'Use at least 8 characters with letters and numbers.';
 
-    //Set back the loading to default
-    setLoading("");
-
-    //Just incase everything goes on well. update the success hook witha message
-    setSuccess(response.data.message)
-
-    //clear your hooks
-    setUsername("");
-    setEmail("");
-    setPassword("");
-    setPhone("");
-     setTimeout(() => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
     setSuccess("");
-  }, 5000);
 
+    const normalizedEmail = email.trim().toLowerCase();
 
-    
-  }
-  catch(error){
-    // set loading to default
-    setLoading("");
-     //update the error hook with the message given back from the response
-     setError(error.message)
+    // ✅ Password validation
+    const passwordIsStrong =
+      password.length >= 8 &&
+      /[A-Za-z]/.test(password) &&
+      /\d/.test(password);
 
-  }
+    if (!passwordIsStrong) {
+      setError(passwordHint);
+      return;
+    }
 
+    setLoading("Please wait as registration is in progress...");
 
-}
+    try {
+      const response = await axios.post(
+        buildApiUrl('/api/signup'), // ✅ FIXED ROUTE
+        {
+          username: username.trim(),
+          email: normalizedEmail,
+          password,
+          phone: phone.trim(),
+        },
+        {
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      setLoading("");
+      setSuccess(response.data.message);
+
+      // ✅ Clear inputs
+      setUsername("");
+      setEmail("");
+      setPassword("");
+      setPhone("");
+
+      // Auto clear success message
+      setTimeout(() => {
+        setSuccess("");
+      }, 5000);
+
+    } catch (err) {
+      setLoading("");
+      setError(err.response?.data?.message || "Something went wrong");
+    }
+  };
 
   return (
     <section className="auth-page auth-page--signup">
       <div className="auth-shell auth-shell--reverse">
+
         <div className="auth-shell__panel">
           <p className="auth-shell__eyebrow">Create Your Account</p>
           <h1>Join the hotel experience with a fresh, modern sign-up flow.</h1>
           <p className="auth-shell__lead">
-            Register once and make it easier to reserve rooms, place dining orders, and manage
-            future visits.
+            Register once and make it easier to reserve rooms, place dining requests,
+            and manage future visits.
           </p>
 
           <div className="auth-shell__highlights">
@@ -93,11 +106,12 @@ const handleSubmit =  async (e) =>{
           {error && <div className="auth-alert auth-alert--error">{error}</div>}
 
           <form className="auth-form auth-form--double" onSubmit={handleSubmit}>
+
             <label className="auth-field">
               <span>Username</span>
               <input
                 type="text"
-                placeholder='Enter your username'
+                placeholder="Enter your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -108,7 +122,7 @@ const handleSubmit =  async (e) =>{
               <span>Email Address</span>
               <input
                 type="email"
-                placeholder='Enter your email address'
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -120,7 +134,7 @@ const handleSubmit =  async (e) =>{
               <div className="auth-password">
                 <input
                   type={showPassword ? "text" : "password"}
-                  placeholder='Create a password'
+                  placeholder="Create a password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -128,20 +142,19 @@ const handleSubmit =  async (e) =>{
                 <button
                   type="button"
                   className="auth-password__toggle"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword(prev => !prev)}
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
+              <small>{passwordHint}</small>
             </label>
 
             <label className="auth-field">
               <span>Phone Number</span>
               <input
                 type="tel"
-                placeholder='Enter your phone number'
+                placeholder="Enter your phone number"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
@@ -153,14 +166,14 @@ const handleSubmit =  async (e) =>{
             </button>
 
             <p className="auth-switch">
-              Already have an account? <Link to="/signin">Signin</Link>
+              Already have an account? <Link to="/signin">Sign in</Link>
             </p>
+
           </form>
         </div>
       </div>
     </section>
-  )
-}
+  );
+};
 
 export default Signup;
-//Research on Axios module in reactjs
