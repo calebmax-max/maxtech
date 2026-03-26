@@ -3,11 +3,14 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../utils/api';
 
-// ✅ GLOBAL AXIOS CONFIG (important)
+// ✅ GLOBAL AXIOS CONFIG
 axios.defaults.withCredentials = true;
+
+const ADMIN_EMAIL = "caleb@gmail.com"; // 👑 your admin email
 
 const Signin = () => {
   const navigate = useNavigate();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,6 +20,7 @@ const Signin = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
     setError('');
     setSuccess('');
 
@@ -28,14 +32,13 @@ const Signin = () => {
     setLoading('Signing you in...');
 
     try {
-      // ✅ USE JSON (cleaner)
       const payload = {
         email: email.trim().toLowerCase(),
         password: password.trim()
       };
 
       const response = await axios.post(
-        buildApiUrl('/api/signin'), // ✅ CORRECT ROUTE
+        buildApiUrl('/api/signin'),
         payload,
         {
           headers: {
@@ -47,17 +50,26 @@ const Signin = () => {
       setLoading('');
       setSuccess(response.data.message);
 
+      const userEmail = response.data.user?.email?.toLowerCase();
+
+      // ✅ REDIRECT BASED ON EMAIL
       setTimeout(() => {
-        navigate('/');
-      }, 900);
+        if (userEmail === ADMIN_EMAIL) {
+          navigate('/admin');   // 👑 ADMIN PANEL
+        } else {
+          navigate('/');        // 👤 NORMAL USER
+        }
+      }, 800);
 
     } catch (requestError) {
       setLoading('');
       setError(
-        requestError.response?.data?.message || "Something went wrong"
+        requestError.response?.data?.message || "Invalid email or password"
       );
     }
   };
+
+
 
   return (
     <section className="auth-page auth-page--signin">

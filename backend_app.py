@@ -1,36 +1,42 @@
 from flask import Flask, request, jsonify, session
-import os
-from datetime import timedelta
+from datetime import timedelta, datetime
 from flask_cors import CORS
 import pymysql
 from werkzeug.security import generate_password_hash, check_password_hash
+import requests
+import base64
+import json
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
+# ---------------- APP SETUP ----------------
 app = Flask(__name__)
 
-# ✅ IMPORTANT: change this to a strong secret in production
 app.config["SECRET_KEY"] = "super-secret-key"
-
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "None"   # ✅ for cross-origin
-app.config["SESSION_COOKIE_SECURE"] = True       # ✅ required for HTTPS (AlwaysData)
 
-# ✅ CORS (important for React frontend)
-CORS(app, supports_credentials=True)
+# ✅ Cookies (only works on HTTPS)
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
+app.config["SESSION_COOKIE_SECURE"] = True
 
-# DATABASE CONFIG (AlwaysData)
+# ✅ CORS
+CORS(app, supports_credentials=True, origins=[
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+])
+
+@app.after_request
+def handle_options(response):
+    response.headers["Access-Control-Allow-Origin"] = "http://localhost:3000"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+    return response
+
+# ---------------- DATABASE ----------------
 DB_HOST = "mysql-calebtonny.alwaysdata.net"
 DB_USER = "calebtonny"
 DB_PASSWORD = "modcom1234"
 DB_NAME = "calebtonny_sokogarden"
 
-# DEFAULT ADMIN
-ADMIN_EMAIL = "caleb@gmail.com"
-ADMIN_PASSWORD = "Caleb123"
-
-# ---------------- DATABASE ----------------
 def get_connection():
     return pymysql.connect(
         host=DB_HOST,
@@ -40,90 +46,61 @@ def get_connection():
         cursorclass=pymysql.cursors.DictCursor,
     )
 
-# ---------------- HELPERS ----------------
-def normalize_email(email):
-    return str(email or "").strip().lower()
-
-def get_payload():
-    return request.get_json(silent=True) or request.form
-
-def is_password_strong(password):
-    password = str(password or "")
-    return len(password) >= 8 and any(c.isalpha() for c in password) and any(c.isdigit() for c in password)
-
-def build_user(user):
-    return {
-        "user_id": user["user_id"],
-        "username": user["username"],
-        "email": user["email"],
-        "phone": user["phone"],
-    }
-
-# ---------------- SETUP ----------------
-def ensure_users_table():
+# ---------------- TABLES ----------------
+def create_tables():
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(120),
-            email VARCHAR(160) UNIQUE,
-            phone VARCHAR(30),
-            password VARCHAR(255)
-        )
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(120),
+        email VARCHAR(160) UNIQUE,
+        phone VARCHAR(30),
+        password VARCHAR(255)
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS room_bookings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NULL,
+        room_name VARCHAR(255),
+        check_in DATE,
+        check_out DATE,
+        amount INT,
+        payment_phone VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS food_orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_title VARCHAR(255),
+        preferred_date DATE,
+        preferred_time VARCHAR(20),
+        total_amount INT,
+        phone VARCHAR(20),
+        items JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
     """)
 
     conn.commit()
     cur.close()
     conn.close()
 
-def ensure_admin():
-    ensure_users_table()
+create_tables()
 
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("SELECT * FROM users WHERE email=%s", (ADMIN_EMAIL,))
-    user = cur.fetchone()
-
-    hashed = generate_password_hash(ADMIN_PASSWORD)
-
-    if user:
-        cur.execute("UPDATE users SET password=%s WHERE email=%s", (hashed, ADMIN_EMAIL))
-    else:
-        cur.execute("""
-            INSERT INTO users(username,email,phone,password)
-            VALUES(%s,%s,%s,%s)
-        """, ("Admin", ADMIN_EMAIL, "+254700000000", hashed))
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-ensure_admin()
-
-# ---------------- ROUTES ----------------
-
-@app.route("/")
-def home():
-    return jsonify({"message": "API is running 🚀"})
-
-# SIGNUP
+# ---------------- AUTH ----------------
+# ---------------- SIGNUP ----------------
 @app.route("/api/signup", methods=["POST"])
 def signup():
-    data = get_payload()
+    data = request.get_json()
 
-    username = data.get("username")
-    email = normalize_email(data.get("email"))
-    password = data.get("password")
-    phone = data.get("phone")
-
-    if not username or not email or not password or not phone:
-        return jsonify({"message": "All fields required"}), 400
-
-    if not is_password_strong(password):
-        return jsonify({"message": "Weak password"}), 400
+    email = data["email"].lower().strip()
+    password = data["password"].strip()
 
     conn = get_connection()
     cur = conn.cursor()
@@ -132,12 +109,16 @@ def signup():
     if cur.fetchone():
         return jsonify({"message": "Email exists"}), 409
 
-    hashed = generate_password_hash(password)
-
+    # ❌ NO HASHING (TEMP ONLY)
     cur.execute("""
         INSERT INTO users(username,email,phone,password)
         VALUES(%s,%s,%s,%s)
-    """, (username, email, phone, hashed))
+    """, (
+        data["username"],
+        email,
+        data["phone"],
+        password   # 👈 plain password
+    ))
 
     conn.commit()
     cur.close()
@@ -145,16 +126,14 @@ def signup():
 
     return jsonify({"message": "Signup successful"})
 
-# SIGNIN
+
+# ---------------- SIGNIN ----------------
 @app.route("/api/signin", methods=["POST"])
 def signin():
-    data = get_payload()
+    data = request.get_json()
 
-    email = normalize_email(data.get("email"))
-    password = str(data.get("password", "")).strip()
-
-    if not email or not password:
-        return jsonify({"message": "Email & password required"}), 400
+    email = data["email"].lower().strip()
+    password = data["password"].strip()
 
     conn = get_connection()
     cur = conn.cursor()
@@ -162,26 +141,235 @@ def signin():
     cur.execute("SELECT * FROM users WHERE email=%s", (email,))
     user = cur.fetchone()
 
-    if not user or not check_password_hash(user["password"], password):
+    # ❌ PLAIN TEXT CHECK
+    if not user or user["password"] != password:
         return jsonify({"message": "Invalid credentials"}), 401
 
-    session["user"] = build_user(user)
+    session["user"] = user
 
-    cur.close()
-    conn.close()
+    return jsonify({"message": "Login successful", "user": user})
+# ---------------- ROOM BOOKING ----------------
+@app.route("/api/room_bookings", methods=["POST", "OPTIONS"])
+def room_booking():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
 
-    return jsonify({"message": "Login successful", "user": session["user"]})
+    try:
+        data = request.get_json()
 
-# SESSION CHECK
-@app.route("/api/auth/session", methods=["GET"])
-def check_session():
-    if "user" not in session:
-        return jsonify({"message": "No session"}), 401
+        conn = get_connection()
+        cur = conn.cursor()
 
-    return jsonify({"user": session["user"]})
+        cur.execute("""
+            INSERT INTO room_bookings 
+            (user_id, room_name, check_in, check_out, amount, payment_phone)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            session.get("user", {}).get("user_id"),
+            data.get("room_name"),
+            data.get("check_in"),
+            data.get("check_out"),
+            data.get("amount"),
+            data.get("payment_phone")
+        ))
 
-# SIGNOUT
-@app.route("/api/signout", methods=["POST"])
-def signout():
-    session.pop("user", None)
-    return jsonify({"message": "Logged out"})
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"message": "Room booking saved ✅"})
+
+    except Exception as e:
+        print("ROOM ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- FOOD ORDER ----
+import json
+@app.route("/api/food_orders", methods=["POST", "OPTIONS"])
+def food_order():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+
+    try:
+        data = request.get_json() or {}
+
+        # ✅ Ensure items is valid JSON (list or dict)
+        items = data.get("items")
+
+        if not isinstance(items, (list, dict)):
+            items = []
+
+        items_json = json.dumps(items)
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            INSERT INTO food_orders
+            (order_title, preferred_date, preferred_time, total_amount, phone, items_json)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            data.get("order_title"),
+            data.get("preferred_date"),
+            data.get("preferred_time"),
+            data.get("total_amount"),
+            data.get("payment_phone"),
+            items_json
+        ))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"message": "Food order saved ✅"})
+
+    except Exception as e:
+        print("FOOD ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
+    
+@app.route("/api/event_bookings", methods=["POST", "OPTIONS"])
+def event_booking():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+
+    try:
+        data = request.get_json() or {}
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            INSERT INTO event_bookings
+            (name, email, phone, event_type, event_date, guests)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            data.get("name"),
+            data.get("email"),
+            data.get("phone"),
+            data.get("event_type"),
+            data.get("event_date"),
+            data.get("guests"),
+
+        ))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"message": "Event booking saved ✅"})
+
+    except Exception as e:
+        print("EVENT ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
+    
+@app.route("/api/stay_bookings", methods=["POST", "OPTIONS"])
+def stay_booking():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+
+    try:
+        data = request.get_json() or {}
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            INSERT INTO room_bookings
+            (user_id, room_name, check_in, check_out, amount, payment_phone)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            session.get("user", {}).get("user_id"),
+            data.get("room_name"),
+            data.get("check_in"),
+            data.get("check_out"),
+            data.get("amount"),
+            data.get("phone")
+        ))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"message": "Stay booking saved ✅"})
+
+    except Exception as e:
+        import traceback
+        print("STAY BOOKING ERROR:", str(e))
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- M-PESA ----------------
+CONSUMER_KEY = "2d4bHfA7WhY123XfrBAZt7KAjksXAfApUGS2AseRAlJkG9k2"
+CONSUMER_SECRET = "ShRXc0X80vbBMEeWIjoAu4iQ16hdAcvXppsGJq7dOkgzOUu9O4s5WjhYyJaRvaIk"
+SHORTCODE = "174379"
+PASSKEY = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"
+CALLBACK_URL = "https://calebtonny.alwaysdata.net/api/callback"
+
+def get_access_token():
+    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+    res = requests.get(url, auth=(CONSUMER_KEY, CONSUMER_SECRET))
+
+    print("TOKEN:", res.status_code, res.text)
+
+    if res.status_code != 200:
+        return None
+
+    return res.json().get("access_token")
+
+@app.route("/api/mpesa_payment", methods=["POST", "OPTIONS"])
+def mpesa():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+
+    try:
+        data = request.get_json()
+
+        phone = str(data.get("phone"))
+        amount = int(data.get("amount"))
+
+        if phone.startswith("0"):
+            phone = "254" + phone[1:]
+
+        token = get_access_token()
+        if not token:
+            return jsonify({"error": "Token failed"}), 500
+
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        password = base64.b64encode((SHORTCODE + PASSKEY + timestamp).encode()).decode()
+
+        payload = {
+            "BusinessShortCode": SHORTCODE,
+            "Password": password,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount,
+            "PartyA": phone,
+            "PartyB": SHORTCODE,
+            "PhoneNumber": phone,
+            "CallBackURL": CALLBACK_URL,
+            "AccountReference": "Hotel",
+            "TransactionDesc": "Payment"
+        }
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+        res = requests.post(
+            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            json=payload,
+            headers=headers
+        )
+
+        print("MPESA:", res.text)
+
+        return jsonify(res.json())
+
+    except Exception as e:
+        print("MPESA ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- RUN ----------------
+if __name__ == "__main__":
+    app.run(debug=True)

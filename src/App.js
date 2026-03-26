@@ -14,6 +14,7 @@ import Dining from './components/Dining';
 import Bookings from './components/Bookings';
 import Contactus from './components/Contactus';
 import EventInquiry from './components/EventInquiry';
+import Admin from './components/Admin';
 axios.defaults.withCredentials = true;
 
 function AppLayout() {
@@ -76,8 +77,10 @@ function AppLayout() {
         <Route path="/rooms/:roomSlug" element={<RoomDetails />} />
         <Route path="/dining" element={<Dining />} />
         <Route path="/bookings" element={<Bookings />} />
+        <Route path="/admin" element={<Admin/>} />
         <Route path="/contactus" element={<Contactus />} />
         <Route path="/events" element={<EventInquiry />} />
+        
         <Route path="/makepayment" element={<Makepayment />} />
         <Route path="*" element={<Notfound />} />
       </Routes>

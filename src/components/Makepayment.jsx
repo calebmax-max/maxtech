@@ -195,14 +195,19 @@ const Makepayment = () => {
         throw new Error(`Enter the exact required amount: Kes ${expectedAmount.toLocaleString()}`);
       }
 
-      const formdata = new FormData();
-      formdata.append('phone', number);
-      formdata.append('amount', enteredAmount);
-
       const response = await axios.post(
-        buildApiUrl('/api/payment'),
-        formdata
-      );
+  buildApiUrl('/api/mpesa_payment'),
+  {
+    phone: number,
+    amount: enteredAmount
+  },
+  {
+    withCredentials: true, // ✅ IMPORTANT
+    headers: {
+      "Content-Type": "application/json"
+    }
+  }
+);
 
       if (paymentItem.type === 'Room Booking' && paymentItem.bookingDetails) {
         await submitRoomBooking({

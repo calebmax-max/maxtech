@@ -1,42 +1,59 @@
 import axios from 'axios';
 import { buildApiUrl } from './api';
 
-const ROOM_BOOKING_ENDPOINTS = [
-  '/api/room_bookings',
-  buildApiUrl('/room_bookings'),
-];
+// ✅ Endpoints (correct and consistent)
+const ROOM_BOOKING_ENDPOINT = buildApiUrl('/api/room_bookings');
+const FOOD_ORDER_ENDPOINT = buildApiUrl('/api/food_orders');
+const STAY_BOOKING_ENDPOINT = buildApiUrl('/api/stay_bookings');
 
-const FOOD_ORDER_ENDPOINTS = [
-  '/api/food_orders',
-  buildApiUrl('/food_orders'),
-];
+// ---------------- GENERIC POST ----------------
+const postCheckoutData = async (endpoint, payload) => {
+  try {
+    const response = await axios.post(endpoint, payload, {
+      timeout: 10000,
+      withCredentials: true,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-const STAY_BOOKING_ENDPOINTS = [
-  '/api/stay_bookings',
-  buildApiUrl('/stay_bookings'),
-];
+    return response.data;
 
-const postCheckoutData = async (endpoints, payload) => {
-  let lastError = null;
-
-  for (const endpoint of endpoints) {
-    try {
-      return await axios.post(endpoint, payload, {
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-    } catch (error) {
-      lastError = error;
-    }
+  } catch (error) {
+    console.error("API ERROR:", endpoint, error.response?.data || error.message);
+    throw error;
   }
-
-  throw lastError;
 };
 
-export const submitRoomBooking = (payload) => postCheckoutData(ROOM_BOOKING_ENDPOINTS, payload);
+// ---------------- ROOM BOOKING ----------------
+export const submitRoomBooking = (payload) => {
+  const cleanedPayload = {
+    ...payload,
+    // ✅ Ensure correct key name
+    room_name: payload.room_name || payload.roomName || "Standard Room",
+  };
 
-export const submitFoodOrder = (payload) => postCheckoutData(FOOD_ORDER_ENDPOINTS, payload);
+  return postCheckoutData(ROOM_BOOKING_ENDPOINT, cleanedPayload);
+};
 
-export const submitStayBooking = (payload) => postCheckoutData(STAY_BOOKING_ENDPOINTS, payload);
+// ---------------- FOOD ORDER ----------------
+export const submitFoodOrder = (payload) => {
+  return postCheckoutData(FOOD_ORDER_ENDPOINT, payload);
+};
+
+// ---------------- STAY BOOKING ----------------
+export const submitStayBooking = (payload) => {
+  const cleanedPayload = {
+    ...payload,
+
+    // ✅ Fix room name
+    room_name: payload.room_name || payload.roomName || "Standard Room",
+
+    // ✅ Fix payment phone
+    payment_phone: payload.payment_phone || payload.phone || "0700000000",
+  };
+
+  console.log("FINAL STAY PAYLOAD:", cleanedPayload);
+
+  return postCheckoutData(STAY_BOOKING_ENDPOINT, cleanedPayload);
+};

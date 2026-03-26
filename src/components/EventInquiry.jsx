@@ -63,52 +63,54 @@ const EventInquiry = () => {
 // On failure:
 // If API unreachable (404), still allow user to proceed to payment.
 // Otherwise, show an error message.
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setSuccess('');
-    setError('');
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setSuccess('');
+  setError('');
 
-    const guestCount = Number(guests) || 0;
-    const checkoutItem = buildCheckoutItem(guestCount);
-    const payload = {
-      name,
-      email,
-      phone,
-      event_date: eventDate,
-      event_type: eventType,
-      guests: guestCount,
-    };
+  const guestCount = Number(guests) || 0;
+  const checkoutItem = buildCheckoutItem(guestCount);
 
-    try {
-      const response = await submitEventBooking(payload);
+  const payload = {
+    name,
+    email,
+    phone,
+    event_date: eventDate,
+    event_type: eventType,
+    guests: guestCount,
+    message: `Event booking for ${eventType} with ${guestCount} guests`
+  };
 
-      setLoading(false);
-      setSuccess(response.data.message || 'Your event request has been received. Proceeding to payment.');
+  try {
+    const response = await submitEventBooking(payload);
 
+    setLoading(false);
+    setSuccess(response.message || 'Event request sent successfully');
+
+    navigate('/makepayment', {
+      state: {
+        checkoutItem,
+        paymentNotice: 'Your event request was saved. Complete payment below.',
+      },
+    });
+
+  } catch (error) {
+    setLoading(false);
+
+    if (!error.response) {
       navigate('/makepayment', {
         state: {
           checkoutItem,
-          paymentNotice: 'Your event request was saved successfully. Complete payment below.',
+          paymentNotice: 'Service temporarily unavailable. Continue with payment.',
         },
       });
-    } catch (submitError) {
-      if (submitError.response?.status === 404 || !submitError.response) {
-        setLoading(false);
-        navigate('/makepayment', {
-          state: {
-            checkoutItem,
-            paymentNotice:
-              'The event booking service is not reachable right now, but you can still continue with payment.',
-          },
-        });
-        return;
-      }
-
-      setLoading(false);
-      setError(submitError.message || 'Unable to send your event request right now.');
+      return;
     }
-  };
+
+    setError(error.response?.data?.error || 'Something went wrong.');
+  }
+};
 
   return (
     <section className="event-page">

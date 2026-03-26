@@ -69,9 +69,6 @@ const Getproducts = () => {
   }
 
   // We shall use the useEffect hook. It enables us to automatically re-render new features incase of any changes
-  useEffect(() =>{
-    fetchProducts()
-  }, [])
 
   // console.log(products)
   const roomCollections = [
