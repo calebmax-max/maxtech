@@ -72,6 +72,32 @@ export const defaultDiningCategories = [
     ],
   },
   {
+    title: 'Soups & Starters',
+    description: 'Warm starters and light opening dishes for lunch and dinner service.',
+    items: [
+      {
+        name: 'Cream of Mushroom Soup',
+        price: 'KSh 680',
+        image: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=900&q=80',
+      },
+      {
+        name: 'Roasted Tomato Basil Soup',
+        price: 'KSh 620',
+        image: 'https://images.unsplash.com/photo-1476718406336-bb5a9690ee2a?auto=format&fit=crop&w=900&q=80',
+      },
+      {
+        name: 'Crispy Calamari Rings',
+        price: 'KSh 1,180',
+        image: 'https://images.unsplash.com/photo-1604909052743-94e838986d24?auto=format&fit=crop&w=900&q=80',
+      },
+      {
+        name: 'Chicken Spring Rolls',
+        price: 'KSh 840',
+        image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=900&q=80',
+      },
+    ],
+  },
+  {
     title: 'Snacks & Fast Bites',
     description: 'Quick favorites for casual dining, room service, and light meals.',
     items: [
@@ -104,6 +130,32 @@ export const defaultDiningCategories = [
         name: 'Mini Pizza Bites',
         price: 'KSh 1,180',
         image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=900&q=80',
+      },
+    ],
+  },
+  {
+    title: 'Local Favorites',
+    description: 'Comforting Kenyan-inspired meals prepared with rich local flavor.',
+    items: [
+      {
+        name: 'Nyama Choma Platter',
+        price: 'KSh 2,300',
+        image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=900&q=80',
+      },
+      {
+        name: 'Pilau Beef Bowl',
+        price: 'KSh 1,480',
+        image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80',
+      },
+      {
+        name: 'Tilapia Fry With Ugali',
+        price: 'KSh 1,950',
+        image: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=900&q=80',
+      },
+      {
+        name: 'Chapati Chicken Curry',
+        price: 'KSh 1,320',
+        image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=900&q=80',
       },
     ],
   },

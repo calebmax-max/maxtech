@@ -202,6 +202,26 @@ DEFAULT_DINING = {
                     "price": "KSh 950",
                     "image": "https://images.unsplash.com/photo-1528207776546-365bb710ee93?auto=format&fit=crop&w=900&q=80",
                 },
+                {
+                    "name": "Omelette & Toast Combo",
+                    "price": "KSh 780",
+                    "image": "https://images.unsplash.com/photo-1510693206972-df098062cb71?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Tropical Fruit Bowl",
+                    "price": "KSh 640",
+                    "image": "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "French Toast Delight",
+                    "price": "KSh 890",
+                    "image": "https://images.unsplash.com/photo-1484723091739-30a097e8f929?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Breakfast Sausage Platter",
+                    "price": "KSh 1,050",
+                    "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
+                },
             ],
         },
         {
@@ -217,6 +237,150 @@ DEFAULT_DINING = {
                     "name": "Creamy Seafood Pasta",
                     "price": "KSh 2,200",
                     "image": "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Herb Chicken Supreme",
+                    "price": "KSh 1,980",
+                    "image": "https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Vegetable Stir Fry Rice Bowl",
+                    "price": "KSh 1,350",
+                    "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Roasted Lamb With Herbs",
+                    "price": "KSh 2,650",
+                    "image": "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Signature Salmon Plate",
+                    "price": "KSh 2,480",
+                    "image": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=900&q=80",
+                },
+            ],
+        },
+        {
+            "title": "Soups & Starters",
+            "description": "Warm starters and light opening dishes for lunch and dinner service.",
+            "items": [
+                {
+                    "name": "Cream of Mushroom Soup",
+                    "price": "KSh 680",
+                    "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Roasted Tomato Basil Soup",
+                    "price": "KSh 620",
+                    "image": "https://images.unsplash.com/photo-1476718406336-bb5a9690ee2a?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Crispy Calamari Rings",
+                    "price": "KSh 1,180",
+                    "image": "https://images.unsplash.com/photo-1604909052743-94e838986d24?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Chicken Spring Rolls",
+                    "price": "KSh 840",
+                    "image": "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=900&q=80",
+                },
+            ],
+        },
+        {
+            "title": "Snacks & Fast Bites",
+            "description": "Quick favorites for casual dining, room service, and light meals.",
+            "items": [
+                {
+                    "name": "Double Cheese Burger",
+                    "price": "KSh 1,150",
+                    "image": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Crispy Chicken Wrap",
+                    "price": "KSh 980",
+                    "image": "https://images.unsplash.com/photo-1608039755401-742074f0548d?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Loaded Fries Basket",
+                    "price": "KSh 720",
+                    "image": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Club Sandwich Deluxe",
+                    "price": "KSh 890",
+                    "image": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Spicy Chicken Wings",
+                    "price": "KSh 1,020",
+                    "image": "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Mini Pizza Bites",
+                    "price": "KSh 1,180",
+                    "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=900&q=80",
+                },
+            ],
+        },
+        {
+            "title": "Local Favorites",
+            "description": "Comforting Kenyan-inspired meals prepared with rich local flavor.",
+            "items": [
+                {
+                    "name": "Nyama Choma Platter",
+                    "price": "KSh 2,300",
+                    "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Pilau Beef Bowl",
+                    "price": "KSh 1,480",
+                    "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Tilapia Fry With Ugali",
+                    "price": "KSh 1,950",
+                    "image": "https://images.unsplash.com/photo-1559847844-d721426d6edc?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Chapati Chicken Curry",
+                    "price": "KSh 1,320",
+                    "image": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=900&q=80",
+                },
+            ],
+        },
+        {
+            "title": "Desserts & Drinks",
+            "description": "Sweet finishes and refreshing beverages to complete your dining experience.",
+            "items": [
+                {
+                    "name": "Chocolate Lava Cake",
+                    "price": "KSh 780",
+                    "image": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Vanilla Berry Cheesecake",
+                    "price": "KSh 860",
+                    "image": "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Fresh Passion Juice",
+                    "price": "KSh 420",
+                    "image": "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Signature Cappuccino",
+                    "price": "KSh 390",
+                    "image": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Ice Cream Sundae",
+                    "price": "KSh 690",
+                    "image": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=900&q=80",
+                },
+                {
+                    "name": "Fresh Strawberry Mocktail",
+                    "price": "KSh 560",
+                    "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=80",
                 },
             ],
         },
@@ -252,6 +416,77 @@ DEFAULT_DINING = {
         },
     ],
 }
+
+
+def merge_dining_catalog_with_defaults(dining):
+    current_catalog = dining if isinstance(dining, dict) else {}
+    current_categories = current_catalog.get("categories")
+    current_featured = current_catalog.get("featuredPlates")
+
+    merged_categories = []
+    existing_categories = current_categories if isinstance(current_categories, list) else []
+    default_category_titles = {
+        default_category["title"].strip().lower() for default_category in DEFAULT_DINING["categories"]
+    }
+
+    for default_category in DEFAULT_DINING["categories"]:
+        matching_category = next(
+            (
+                category
+                for category in existing_categories
+                if (category.get("title") or "").strip().lower()
+                == default_category["title"].strip().lower()
+            ),
+            None,
+        )
+
+        if not matching_category:
+            merged_categories.append(json.loads(json.dumps(default_category)))
+            continue
+
+        existing_items = matching_category.get("items") if isinstance(matching_category.get("items"), list) else []
+        existing_names = {
+            (item.get("name") or "").strip().lower()
+            for item in existing_items
+            if isinstance(item, dict)
+        }
+        default_items_to_add = [
+            json.loads(json.dumps(item))
+            for item in default_category["items"]
+            if item["name"].strip().lower() not in existing_names
+        ]
+
+        merged_categories.append(
+            {
+                **matching_category,
+                "description": matching_category.get("description") or default_category["description"],
+                "items": existing_items + default_items_to_add,
+            }
+        )
+
+    merged_categories.extend(
+        category
+        for category in existing_categories
+        if isinstance(category, dict)
+        and (category.get("title") or "").strip().lower() not in default_category_titles
+    )
+
+    existing_featured_list = current_featured if isinstance(current_featured, list) else []
+    existing_featured_titles = {
+        (plate.get("title") or "").strip().lower()
+        for plate in existing_featured_list
+        if isinstance(plate, dict)
+    }
+    merged_featured = list(existing_featured_list) + [
+        json.loads(json.dumps(plate))
+        for plate in DEFAULT_DINING["featuredPlates"]
+        if plate["title"].strip().lower() not in existing_featured_titles
+    ]
+
+    return {
+        "categories": merged_categories,
+        "featuredPlates": merged_featured,
+    }
 
 
 # ---------------- TABLES ----------------
@@ -454,7 +689,16 @@ def get_site_catalog():
 
         rooms = json.loads(catalog["rooms_json"]) if catalog.get("rooms_json") else DEFAULT_ROOMS
         dining = json.loads(catalog["dining_json"]) if catalog.get("dining_json") else DEFAULT_DINING
-        return {"rooms": rooms, "dining": dining}
+        merged_dining = merge_dining_catalog_with_defaults(dining)
+
+        if merged_dining != dining:
+            cur.execute(
+                "UPDATE site_catalog SET dining_json=%s WHERE id=1",
+                (json.dumps(merged_dining),),
+            )
+            conn.commit()
+
+        return {"rooms": rooms, "dining": merged_dining}
     finally:
         cur.close()
         conn.close()

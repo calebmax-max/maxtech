@@ -67,7 +67,6 @@ const Admin = () => {
   const [foodOrders, setFoodOrders] = useState([]);
   const [eventBookings, setEventBookings] = useState([]);
   const [roomBookings, setRoomBookings] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
   const [backendVersion, setBackendVersion] = useState(null);
   const [roomForm, setRoomForm] = useState(defaultRoomForm);
   const [dishForm, setDishForm] = useState(defaultDishForm);
@@ -100,14 +99,12 @@ const Admin = () => {
       setFoodOrders(response.data.food_orders || []);
       setEventBookings(response.data.event_bookings || []);
       setRoomBookings(response.data.room_bookings || []);
-      setAuditLogs(response.data.audit_logs || []);
       setRemoteDataError('');
     } catch (error) {
       setUsers([]);
       setFoodOrders([]);
       setEventBookings([]);
       setRoomBookings([]);
-      setAuditLogs([]);
       if (error.response?.status === 404) {
         setRemoteDataError(
           'The live server does not have /api/admin/overview yet. Restart or redeploy the Flask backend, then refresh this page. Check /api/debug/version too.'
@@ -130,11 +127,31 @@ const Admin = () => {
     refreshData();
   }, []);
 
-  const stats = useMemo(() => {
-    const totalDiningItems = catalog.categories.reduce(
-      (sum, category) => sum + category.items.length,
-      0
+  const foodMenuItems = useMemo(() => {
+    const featuredItems = catalog.featuredPlates.map((plate) => ({
+      name: plate.title,
+      price: plate.price,
+      image: plate.image,
+      description: plate.description,
+      categoryTitle: plate.tag || 'Featured Dish',
+      source: 'featured',
+    }));
+
+    const categoryItems = catalog.categories.flatMap((category) =>
+      category.items.map((item) => ({
+        ...item,
+        categoryTitle: category.title,
+        source: 'menu',
+      }))
     );
+
+    return [...featuredItems, ...categoryItems];
+  }, [catalog.categories, catalog.featuredPlates]);
+
+  const stats = useMemo(() => {
+    const totalDiningItems =
+      catalog.featuredPlates.length +
+      catalog.categories.reduce((sum, category) => sum + category.items.length, 0);
 
     return [
       {
@@ -332,6 +349,33 @@ const Admin = () => {
     await saveManagedDiningCatalog(updatedCatalog);
     setCatalog(updatedCatalog);
     setStatus(`Removed featured dish: ${title}`);
+  };
+
+  const handleDeleteMenuItem = async (item) => {
+    if (item.source === 'featured') {
+      await handleDeleteFeaturedDish(item.name);
+      return;
+    }
+
+    const updatedCategories = catalog.categories
+      .map((category) =>
+        category.title !== item.categoryTitle
+          ? category
+          : {
+              ...category,
+              items: category.items.filter((categoryItem) => categoryItem.name !== item.name),
+            }
+      )
+      .filter((category) => category.items.length > 0);
+
+    const updatedCatalog = {
+      ...catalog,
+      categories: updatedCategories,
+    };
+
+    await saveManagedDiningCatalog(updatedCatalog);
+    setCatalog(updatedCatalog);
+    setStatus(`Removed menu item: ${item.name}`);
   };
 
   const handleAddMenuItem = async (event) => {
@@ -679,6 +723,48 @@ const Admin = () => {
 
               <article className="admin-data-card">
                 <div className="admin-data-card__header">
+                  <p>All Food Menu Items</p>
+                  <h3>Every food item currently available in the dining menu</h3>
+                </div>
+
+                {foodMenuItems.length === 0 ? (
+                  <p className="admin-data-card__empty">No food menu items available yet.</p>
+                ) : (
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Dish</th>
+                          <th>Category</th>
+                          <th>Price</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {foodMenuItems.map((item) => (
+                          <tr key={`${item.source}-${item.categoryTitle}-${item.name}`}>
+                            <td>{item.name}</td>
+                            <td>{item.categoryTitle}</td>
+                            <td>{item.price}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="admin-table__button"
+                                onClick={() => handleDeleteMenuItem(item)}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </article>
+
+              <article className="admin-data-card">
+                <div className="admin-data-card__header">
                   <p>Registered Users</p>
                   <h3>Guest accounts from the backend</h3>
                 </div>
@@ -834,79 +920,6 @@ const Admin = () => {
                 )}
               </article>
 
-              <article className="admin-data-card">
-                <div className="admin-data-card__header">
-                  <p>Featured Dishes</p>
-                  <h3>Current dining highlights</h3>
-                </div>
-
-                {catalog.featuredPlates.length === 0 ? (
-                  <p className="admin-data-card__empty">No featured dishes available yet.</p>
-                ) : (
-                  <div className="admin-table-wrap">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Dish</th>
-                          <th>Tag</th>
-                          <th>Price</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {catalog.featuredPlates.map((plate) => (
-                          <tr key={plate.title}>
-                            <td>{plate.title}</td>
-                            <td>{plate.tag}</td>
-                            <td>{plate.price}</td>
-                            <td>
-                              <button
-                                type="button"
-                                className="admin-table__button"
-                                onClick={() => handleDeleteFeaturedDish(plate.title)}
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </article>
-
-              <article className="admin-data-card">
-                <div className="admin-data-card__header">
-                  <p>Food Menu Categories</p>
-                  <h3>Current menu sections and dish counts</h3>
-                </div>
-
-                {catalog.categories.length === 0 ? (
-                  <p className="admin-data-card__empty">No menu categories available yet.</p>
-                ) : (
-                  <div className="admin-table-wrap">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Category</th>
-                          <th>Description</th>
-                          <th>Items</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {catalog.categories.map((category) => (
-                          <tr key={category.title}>
-                            <td>{category.title}</td>
-                            <td>{category.description}</td>
-                            <td>{category.items.length}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </article>
             </div>
           </div>
 
@@ -938,38 +951,6 @@ const Admin = () => {
                             <td>{booking.room_name}</td>
                             <td>{booking.check_in} to {booking.check_out}</td>
                             <td>{booking.payment_phone || '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </article>
-
-              <article className="admin-data-card">
-                <div className="admin-data-card__header">
-                  <p>Audit Trail</p>
-                  <h3>Recent admin activity</h3>
-                </div>
-
-                {auditLogs.length === 0 ? (
-                  <p className="admin-data-card__empty">No audit log entries yet.</p>
-                ) : (
-                  <div className="admin-table-wrap">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Action</th>
-                          <th>Entity</th>
-                          <th>When</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {auditLogs.slice(0, 10).map((log) => (
-                          <tr key={log.id}>
-                            <td>{log.action}</td>
-                            <td>{log.entity_type || '-'}</td>
-                            <td>{log.created_at}</td>
                           </tr>
                         ))}
                       </tbody>

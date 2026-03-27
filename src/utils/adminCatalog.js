@@ -17,6 +17,72 @@ const defaultDiningCatalog = () => ({
   featuredPlates: clone(defaultFeaturedPlates),
 });
 
+const mergeDiningCatalogWithDefaults = (catalog) => {
+  const safeCatalog = catalog && typeof catalog === 'object' ? catalog : {};
+  const baseCatalog = defaultDiningCatalog();
+  const incomingCategories = Array.isArray(safeCatalog.categories) ? safeCatalog.categories : [];
+  const incomingFeaturedPlates = Array.isArray(safeCatalog.featuredPlates)
+    ? safeCatalog.featuredPlates
+    : [];
+
+  const categories = [
+    ...baseCatalog.categories.map((defaultCategory) => {
+      const matchingCategory = incomingCategories.find(
+        (category) =>
+          category?.title?.trim().toLowerCase() === defaultCategory.title.trim().toLowerCase()
+      );
+
+      if (!matchingCategory) {
+        return defaultCategory;
+      }
+
+      const currentItems = Array.isArray(matchingCategory.items) ? matchingCategory.items : [];
+      const currentItemNames = new Set(
+        currentItems
+          .map((item) => item?.name?.trim().toLowerCase())
+          .filter(Boolean)
+      );
+
+      return {
+        ...defaultCategory,
+        ...matchingCategory,
+        description: matchingCategory.description || defaultCategory.description,
+        items: [
+          ...currentItems,
+          ...defaultCategory.items.filter(
+            (item) => !currentItemNames.has(item.name.trim().toLowerCase())
+          ),
+        ],
+      };
+    }),
+    ...incomingCategories.filter(
+      (category) =>
+        !baseCatalog.categories.some(
+          (defaultCategory) =>
+            defaultCategory.title.trim().toLowerCase() === category?.title?.trim().toLowerCase()
+        )
+    ),
+  ];
+
+  const featuredPlateTitles = new Set(
+    incomingFeaturedPlates
+      .map((plate) => plate?.title?.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const featuredPlates = [
+    ...incomingFeaturedPlates,
+    ...baseCatalog.featuredPlates.filter(
+      (plate) => !featuredPlateTitles.has(plate.title.trim().toLowerCase())
+    ),
+  ];
+
+  return {
+    categories,
+    featuredPlates,
+  };
+};
+
 export const getManagedRooms = () => {
   try {
     const rawValue = localStorage.getItem(ROOMS_KEY);
@@ -62,7 +128,10 @@ export const saveManagedRooms = async (rooms) => {
 export const getManagedDiningCatalog = () => {
   try {
     const rawValue = localStorage.getItem(DINING_KEY);
-    return rawValue ? JSON.parse(rawValue) : defaultDiningCatalog();
+    const parsedCatalog = rawValue ? JSON.parse(rawValue) : defaultDiningCatalog();
+    const mergedCatalog = mergeDiningCatalogWithDefaults(parsedCatalog);
+    cacheManagedDiningCatalog(mergedCatalog);
+    return mergedCatalog;
   } catch (error) {
     return defaultDiningCatalog();
   }
@@ -75,7 +144,7 @@ export const cacheManagedDiningCatalog = (catalog) => {
 export const fetchManagedDiningCatalog = async () => {
   try {
     const response = await axios.get(buildApiUrl('/api/catalog/dining'));
-    const catalog = response.data.catalog || defaultDiningCatalog();
+    const catalog = mergeDiningCatalogWithDefaults(response.data.catalog);
     cacheManagedDiningCatalog(catalog);
     return catalog;
   } catch (error) {
@@ -86,18 +155,20 @@ export const fetchManagedDiningCatalog = async () => {
 };
 
 export const saveManagedDiningCatalog = async (catalog) => {
+  const mergedCatalog = mergeDiningCatalogWithDefaults(catalog);
+
   try {
     const response = await axios.put(
       buildApiUrl('/api/admin/catalog/dining'),
-      { catalog },
+      { catalog: mergedCatalog },
       { withCredentials: true }
     );
-    const nextCatalog = response.data.catalog || catalog;
+    const nextCatalog = mergeDiningCatalogWithDefaults(response.data.catalog || mergedCatalog);
     cacheManagedDiningCatalog(nextCatalog);
     return nextCatalog;
   } catch (error) {
-    cacheManagedDiningCatalog(catalog);
-    return catalog;
+    cacheManagedDiningCatalog(mergedCatalog);
+    return mergedCatalog;
   }
 };
 
