@@ -212,6 +212,20 @@ DEFAULT_DINING = {
             "tag": "Weekend Favorite",
             "description": "A colorful brunch spread with eggs, fruit, pastries, and fresh juice, ideal for slow mornings and shared dining.",
         },
+        {
+            "title": "Royal Grill Experience",
+            "price": "KSh 3,980",
+            "image": "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80",
+            "tag": "Premium Dining",
+            "description": "An elevated grill plate with steak, roast vegetables, and signature sauces served in a bold restaurant presentation.",
+        },
+        {
+            "title": "Dessert Tasting Trio",
+            "price": "KSh 1,420",
+            "image": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=1200&q=80",
+            "tag": "Sweet Selection",
+            "description": "Three dessert favorites plated together for guests who want to explore more than one sweet finish in a single order.",
+        },
     ],
 }
 

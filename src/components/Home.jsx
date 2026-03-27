@@ -7,6 +7,7 @@ import {
   getManagedDiningCatalog,
   getManagedRooms,
 } from '../utils/adminCatalog';
+import { defaultFeaturedPlates } from '../data/diningMenu';
 
 
 //formatDate — Converts a Date object to "YYYY-MM-DD" string format (for <input type="date">)
@@ -73,16 +74,34 @@ const Getproducts = () => {
     },
   ];
 
-  const resolvedFeaturedDishes =
-    featuredDishes.length > 0
-      ? featuredDishes.map((plate) => ({
-          product_name: plate.title,
-          product_description: plate.description,
-          product_cost: Number(String(plate.price).replace(/[^0-9]/g, '')) || 0,
-          product_photo: plate.image,
-          isFallback: true,
-        }))
-      : fallbackDishes;
+  const normalizedFeaturedDishes = featuredDishes.map((plate) => ({
+    product_name: plate.title,
+    product_description: plate.description,
+    product_cost: Number(String(plate.price).replace(/[^0-9]/g, '')) || 0,
+    product_photo: plate.image,
+    isFallback: true,
+  }));
+
+  const normalizedDefaultFeaturedDishes = defaultFeaturedPlates.map((plate) => ({
+    product_name: plate.title,
+    product_description: plate.description,
+    product_cost: Number(String(plate.price).replace(/[^0-9]/g, '')) || 0,
+    product_photo: plate.image,
+    isFallback: true,
+  }));
+
+  const resolvedFeaturedDishes = [
+    ...normalizedFeaturedDishes,
+    ...normalizedDefaultFeaturedDishes.filter(
+      (plate) =>
+        !normalizedFeaturedDishes.some((featuredDish) => featuredDish.product_name === plate.product_name)
+    ),
+    ...fallbackDishes.filter(
+      (plate) =>
+        !normalizedFeaturedDishes.some((featuredDish) => featuredDish.product_name === plate.product_name) &&
+        !normalizedDefaultFeaturedDishes.some((featuredDish) => featuredDish.product_name === plate.product_name)
+    ),
+  ].slice(0, 4);
   const amenityHighlights = [
     {
       title: 'Luxury Accommodation',
