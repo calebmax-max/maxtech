@@ -418,6 +418,21 @@ DEFAULT_DINING = {
 }
 
 
+def merge_rooms_with_defaults(rooms):
+    current_rooms = rooms if isinstance(rooms, list) else []
+    current_names = {
+        (room.get("name") or "").strip().lower()
+        for room in current_rooms
+        if isinstance(room, dict)
+    }
+
+    return list(current_rooms) + [
+        json.loads(json.dumps(room))
+        for room in DEFAULT_ROOMS
+        if room["name"].strip().lower() not in current_names
+    ]
+
+
 def merge_dining_catalog_with_defaults(dining):
     current_catalog = dining if isinstance(dining, dict) else {}
     current_categories = current_catalog.get("categories")
@@ -688,17 +703,18 @@ def get_site_catalog():
             return {"rooms": DEFAULT_ROOMS, "dining": DEFAULT_DINING}
 
         rooms = json.loads(catalog["rooms_json"]) if catalog.get("rooms_json") else DEFAULT_ROOMS
+        merged_rooms = merge_rooms_with_defaults(rooms)
         dining = json.loads(catalog["dining_json"]) if catalog.get("dining_json") else DEFAULT_DINING
         merged_dining = merge_dining_catalog_with_defaults(dining)
 
-        if merged_dining != dining:
+        if merged_rooms != rooms or merged_dining != dining:
             cur.execute(
-                "UPDATE site_catalog SET dining_json=%s WHERE id=1",
-                (json.dumps(merged_dining),),
+                "UPDATE site_catalog SET rooms_json=%s, dining_json=%s WHERE id=1",
+                (json.dumps(merged_rooms), json.dumps(merged_dining)),
             )
             conn.commit()
 
-        return {"rooms": rooms, "dining": merged_dining}
+        return {"rooms": merged_rooms, "dining": merged_dining}
     finally:
         cur.close()
         conn.close()

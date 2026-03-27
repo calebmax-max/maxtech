@@ -12,10 +12,27 @@ const DINING_KEY = 'admin_dining_catalog';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+const defaultRoomsCatalog = () => clone(defaultRoomOptions);
+
 const defaultDiningCatalog = () => ({
   categories: clone(defaultDiningCategories),
   featuredPlates: clone(defaultFeaturedPlates),
 });
+
+const mergeRoomsWithDefaults = (rooms) => {
+  const incomingRooms = Array.isArray(rooms) ? rooms : [];
+  const defaultRooms = defaultRoomsCatalog();
+  const incomingNames = new Set(
+    incomingRooms
+      .map((room) => room?.name?.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  return [
+    ...incomingRooms,
+    ...defaultRooms.filter((room) => !incomingNames.has(room.name.trim().toLowerCase())),
+  ];
+};
 
 const mergeDiningCatalogWithDefaults = (catalog) => {
   const safeCatalog = catalog && typeof catalog === 'object' ? catalog : {};
@@ -86,9 +103,12 @@ const mergeDiningCatalogWithDefaults = (catalog) => {
 export const getManagedRooms = () => {
   try {
     const rawValue = localStorage.getItem(ROOMS_KEY);
-    return rawValue ? JSON.parse(rawValue) : clone(defaultRoomOptions);
+    const parsedRooms = rawValue ? JSON.parse(rawValue) : defaultRoomsCatalog();
+    const mergedRooms = mergeRoomsWithDefaults(parsedRooms);
+    cacheManagedRooms(mergedRooms);
+    return mergedRooms;
   } catch (error) {
-    return clone(defaultRoomOptions);
+    return defaultRoomsCatalog();
   }
 };
 
@@ -99,7 +119,7 @@ export const cacheManagedRooms = (rooms) => {
 export const fetchManagedRooms = async () => {
   try {
     const response = await axios.get(buildApiUrl('/api/catalog/rooms'));
-    const rooms = response.data.rooms || clone(defaultRoomOptions);
+    const rooms = mergeRoomsWithDefaults(response.data.rooms);
     cacheManagedRooms(rooms);
     return rooms;
   } catch (error) {
@@ -110,18 +130,20 @@ export const fetchManagedRooms = async () => {
 };
 
 export const saveManagedRooms = async (rooms) => {
+  const mergedRooms = mergeRoomsWithDefaults(rooms);
+
   try {
     const response = await axios.put(
       buildApiUrl('/api/admin/catalog/rooms'),
-      { rooms },
+      { rooms: mergedRooms },
       { withCredentials: true }
     );
-    const nextRooms = response.data.rooms || rooms;
+    const nextRooms = mergeRoomsWithDefaults(response.data.rooms || mergedRooms);
     cacheManagedRooms(nextRooms);
     return nextRooms;
   } catch (error) {
-    cacheManagedRooms(rooms);
-    return rooms;
+    cacheManagedRooms(mergedRooms);
+    return mergedRooms;
   }
 };
 
