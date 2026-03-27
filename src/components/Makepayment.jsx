@@ -52,26 +52,10 @@ const Makepayment = () => {
   const [allFoodCheckoutItems, setAllFoodCheckoutItems] = useState(() => getManagedFoodCheckoutItems());
   const location = useLocation();
   const navigate = useNavigate();
-  const { product, checkoutItem, paymentNotice } = location.state || {};
+  const { checkoutItem, paymentNotice } = location.state || {};
   const today = formatDate(new Date());
 
-  const paymentItem = useMemo(() => {
-    if (checkoutItem) {
-      return checkoutItem;
-    }
-
-    if (product) {
-      return {
-        title: product.product_name,
-        description: product.product_description,
-        image: product.product_photo,
-        amount: Number(product.product_cost) || 0,
-        type: 'Food Order',
-      };
-    }
-
-    return null;
-  }, [checkoutItem, product]);
+  const paymentItem = useMemo(() => checkoutItem || null, [checkoutItem]);
 
   const isFoodOrder = isFoodPaymentItem(paymentItem);
   const [number, setNumber] = useState('');

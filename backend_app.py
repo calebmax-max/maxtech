@@ -121,41 +121,6 @@ def ensure_column(cursor, table_name, column_name, column_definition):
         cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
 
 
-def ensure_default_organization(cursor):
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS organizations (
-            org_id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(160) NOT NULL,
-            slug VARCHAR(160) UNIQUE,
-            contact_email VARCHAR(160),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-
-    cursor.execute("SELECT org_id FROM organizations WHERE slug=%s", ("default-workspace",))
-    organization = cursor.fetchone()
-    if organization:
-        return organization["org_id"]
-
-    cursor.execute(
-        """
-        INSERT INTO organizations(name, slug, contact_email)
-        VALUES(%s, %s, %s)
-        """,
-        ("EliteHotels Workspace", "default-workspace", ADMIN_EMAIL),
-    )
-    return cursor.lastrowid
-
-
-def slugify(value):
-    normalized = "".join(character.lower() if character.isalnum() else "-" for character in value.strip())
-    while "--" in normalized:
-        normalized = normalized.replace("--", "-")
-    return normalized.strip("-") or "workspace"
-
-
 DEFAULT_ROOMS = [
     {
         "name": "Deluxe King Room",
@@ -255,13 +220,10 @@ def create_tables():
     conn = get_connection()
     cur = conn.cursor()
 
-    default_org_id = ensure_default_organization(cur)
-
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
             user_id INT AUTO_INCREMENT PRIMARY KEY,
-            org_id INT NULL,
             is_admin TINYINT(1) DEFAULT 0,
             role VARCHAR(40) DEFAULT 'guest',
             username VARCHAR(120),
@@ -271,14 +233,12 @@ def create_tables():
         )
         """
     )
-    ensure_column(cur, "users", "org_id", "INT NULL")
     ensure_column(cur, "users", "is_admin", "TINYINT(1) DEFAULT 0")
     ensure_column(cur, "users", "role", "VARCHAR(40) DEFAULT 'guest'")
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS room_bookings (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            org_id INT NULL,
             user_id INT NULL,
             room_name VARCHAR(255),
             check_in DATE,
@@ -289,13 +249,11 @@ def create_tables():
         )
         """
     )
-    ensure_column(cur, "room_bookings", "org_id", "INT NULL")
 
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS food_orders (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            org_id INT NULL,
             order_title VARCHAR(255),
             preferred_date DATE,
             preferred_time VARCHAR(20),
@@ -306,13 +264,11 @@ def create_tables():
         )
         """
     )
-    ensure_column(cur, "food_orders", "org_id", "INT NULL")
 
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS event_bookings (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            org_id INT NULL,
             name VARCHAR(160),
             email VARCHAR(160),
             phone VARCHAR(30),
@@ -323,12 +279,11 @@ def create_tables():
         )
         """
     )
-    ensure_column(cur, "event_bookings", "org_id", "INT NULL")
 
     cur.execute(
         """
-        CREATE TABLE IF NOT EXISTS workspace_catalogs (
-            org_id INT PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS site_catalog (
+            id INT PRIMARY KEY,
             rooms_json LONGTEXT,
             dining_json LONGTEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -336,23 +291,10 @@ def create_tables():
         """
     )
 
-    ensure_column(cur, "organizations", "logo_url", "VARCHAR(255) NULL")
-    ensure_column(cur, "organizations", "primary_color", "VARCHAR(20) NULL")
-    ensure_column(cur, "organizations", "accent_color", "VARCHAR(20) NULL")
-    ensure_column(cur, "organizations", "hero_title", "VARCHAR(255) NULL")
-    ensure_column(cur, "organizations", "contact_phone", "VARCHAR(40) NULL")
-    ensure_column(cur, "organizations", "location", "VARCHAR(160) NULL")
-    ensure_column(cur, "organizations", "subscription_plan", "VARCHAR(40) DEFAULT 'starter'")
-    ensure_column(cur, "organizations", "subscription_status", "VARCHAR(40) DEFAULT 'trial'")
-    ensure_column(cur, "organizations", "subscription_renewal_date", "DATE NULL")
-    ensure_column(cur, "organizations", "subscription_amount", "INT DEFAULT 0")
-    ensure_column(cur, "organizations", "trial_ends_at", "DATE NULL")
-
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS audit_logs (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            org_id INT NULL,
             user_id INT NULL,
             action VARCHAR(120) NOT NULL,
             entity_type VARCHAR(80) NULL,
@@ -365,21 +307,17 @@ def create_tables():
         """
     )
 
-    cur.execute("UPDATE users SET org_id=%s WHERE org_id IS NULL", (default_org_id,))
     cur.execute("UPDATE users SET is_admin=1 WHERE LOWER(email)=%s", (ADMIN_EMAIL,))
     cur.execute("UPDATE users SET role='owner' WHERE LOWER(email)=%s", (ADMIN_EMAIL,))
-    cur.execute("UPDATE room_bookings SET org_id=%s WHERE org_id IS NULL", (default_org_id,))
-    cur.execute("UPDATE food_orders SET org_id=%s WHERE org_id IS NULL", (default_org_id,))
-    cur.execute("UPDATE event_bookings SET org_id=%s WHERE org_id IS NULL", (default_org_id,))
     cur.execute(
         """
-        INSERT INTO workspace_catalogs(org_id, rooms_json, dining_json)
-        VALUES(%s, %s, %s)
+        INSERT INTO site_catalog(id, rooms_json, dining_json)
+        VALUES(1, %s, %s)
         ON DUPLICATE KEY UPDATE
-        rooms_json = COALESCE(workspace_catalogs.rooms_json, VALUES(rooms_json)),
-        dining_json = COALESCE(workspace_catalogs.dining_json, VALUES(dining_json))
+        rooms_json = COALESCE(site_catalog.rooms_json, VALUES(rooms_json)),
+        dining_json = COALESCE(site_catalog.dining_json, VALUES(dining_json))
         """,
-        (default_org_id, json.dumps(DEFAULT_ROOMS), json.dumps(DEFAULT_DINING)),
+        (json.dumps(DEFAULT_ROOMS), json.dumps(DEFAULT_DINING)),
     )
 
     conn.commit()
@@ -409,69 +347,9 @@ def get_food_items_column():
         conn.close()
 
 
-def get_organization_by_id(org_id):
-    conn = get_connection()
-    cur = conn.cursor()
-
-    try:
-        cur.execute(
-            """
-            SELECT org_id, name, slug, contact_email, logo_url, primary_color, accent_color, hero_title,
-                   contact_phone, location, subscription_plan, subscription_status, subscription_renewal_date,
-                   subscription_amount, trial_ends_at, created_at
-            FROM organizations
-            WHERE org_id=%s
-            """,
-            (org_id,),
-        )
-        return cur.fetchone()
-    finally:
-        cur.close()
-        conn.close()
-
-
-def resolve_user_org_id(user):
-    return user.get("org_id") or get_default_org_id()
-
-
-def get_default_org_id():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    try:
-        cur.execute("SELECT org_id FROM organizations WHERE slug=%s", ("default-workspace",))
-        organization = cur.fetchone()
-        return organization["org_id"] if organization else None
-    finally:
-        cur.close()
-        conn.close()
-
-
-def get_organization_by_slug(slug):
-    conn = get_connection()
-    cur = conn.cursor()
-
-    try:
-        cur.execute(
-            """
-            SELECT org_id, name, slug, contact_email, logo_url, primary_color, accent_color, hero_title,
-                   contact_phone, location, subscription_plan, subscription_status, subscription_renewal_date,
-                   subscription_amount, trial_ends_at, created_at
-            FROM organizations
-            WHERE slug=%s
-            """,
-            (slug,),
-        )
-        return cur.fetchone()
-    finally:
-        cur.close()
-        conn.close()
-
-
-def log_audit(action, entity_type=None, entity_id=None, details=None, org_id=None, user_id=None):
+def log_audit(action, entity_type=None, entity_id=None, details=None, user_id=None):
     payload = json.dumps(details or {})
     session_user = session.get("user") or {}
-    target_org_id = org_id if org_id is not None else session_user.get("org_id")
     target_user_id = user_id if user_id is not None else session_user.get("user_id")
 
     conn = get_connection()
@@ -480,11 +358,10 @@ def log_audit(action, entity_type=None, entity_id=None, details=None, org_id=Non
     try:
         cur.execute(
             """
-            INSERT INTO audit_logs(org_id, user_id, action, entity_type, entity_id, details_json, ip_address, user_agent)
-            VALUES(%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO audit_logs(user_id, action, entity_type, entity_id, details_json, ip_address, user_agent)
+            VALUES(%s, %s, %s, %s, %s, %s, %s)
             """,
             (
-                target_org_id,
                 target_user_id,
                 action,
                 entity_type,
@@ -500,25 +377,13 @@ def log_audit(action, entity_type=None, entity_id=None, details=None, org_id=Non
         conn.close()
 
 
-def resolve_request_organization():
-    user = session.get("user")
-    if user and user.get("org_id"):
-        organization = get_organization_by_id(user["org_id"])
-        if organization:
-            return organization
-
-    default_org_id = get_default_org_id()
-    return get_organization_by_id(default_org_id) if default_org_id else None
-
-
-def get_workspace_catalog(org_id):
+def get_site_catalog():
     conn = get_connection()
     cur = conn.cursor()
 
     try:
         cur.execute(
-            "SELECT rooms_json, dining_json FROM workspace_catalogs WHERE org_id=%s",
-            (org_id,),
+            "SELECT rooms_json, dining_json FROM site_catalog WHERE id=1",
         )
         catalog = cur.fetchone()
         if not catalog:
@@ -532,8 +397,8 @@ def get_workspace_catalog(org_id):
         conn.close()
 
 
-def save_workspace_catalog(org_id, rooms=None, dining=None):
-    existing = get_workspace_catalog(org_id)
+def save_site_catalog(rooms=None, dining=None):
+    existing = get_site_catalog()
     next_rooms = rooms if rooms is not None else existing["rooms"]
     next_dining = dining if dining is not None else existing["dining"]
 
@@ -543,11 +408,11 @@ def save_workspace_catalog(org_id, rooms=None, dining=None):
     try:
         cur.execute(
             """
-            INSERT INTO workspace_catalogs(org_id, rooms_json, dining_json)
-            VALUES(%s, %s, %s)
+            INSERT INTO site_catalog(id, rooms_json, dining_json)
+            VALUES(1, %s, %s)
             ON DUPLICATE KEY UPDATE rooms_json=VALUES(rooms_json), dining_json=VALUES(dining_json)
             """,
-            (org_id, json.dumps(next_rooms), json.dumps(next_dining)),
+            (json.dumps(next_rooms), json.dumps(next_dining)),
         )
         conn.commit()
     finally:
@@ -579,18 +444,15 @@ def serialize_rows(rows):
 
 
 def build_safe_user(user):
-    organization = get_organization_by_id(user.get("org_id")) if user.get("org_id") else None
     role = user.get("role") or ("owner" if is_admin_email(user["email"]) else "guest")
     is_admin = bool(user.get("is_admin")) or role in {"owner", "admin"} or is_admin_email(user["email"])
     return {
         "user_id": user["user_id"],
-        "org_id": user.get("org_id"),
         "username": user.get("username"),
         "email": user["email"],
         "phone": user.get("phone"),
         "role": role,
         "is_admin": is_admin,
-        "organization": {key: serialize_value(value) for key, value in organization.items()} if organization else None,
     }
 
 
@@ -661,16 +523,15 @@ def signup():
         if cur.fetchone():
             return jsonify({"message": "Email exists"}), 409
 
-        org_id = get_default_org_id()
         is_admin = 1 if is_admin_email(email) else 0
         role = "owner" if is_admin else "guest"
 
         cur.execute(
             """
-            INSERT INTO users(org_id,is_admin,role,username,email,phone,password)
-            VALUES(%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO users(is_admin,role,username,email,phone,password)
+            VALUES(%s,%s,%s,%s,%s,%s)
             """,
-            (org_id, is_admin, role, username, email, phone, generate_password_hash(password)),
+            (is_admin, role, username, email, phone, generate_password_hash(password)),
         )
         user_id = cur.lastrowid
         conn.commit()
@@ -679,7 +540,6 @@ def signup():
             entity_type="user",
             entity_id=user_id,
             details={"email": email},
-            org_id=org_id,
             user_id=user_id,
         )
         return jsonify({"message": "Signup successful"})
@@ -710,12 +570,6 @@ def signin():
             session.pop("user", None)
             return jsonify({"message": "Invalid credentials"}), 401
 
-        if not user.get("org_id"):
-            default_org_id = get_default_org_id()
-            cur.execute("UPDATE users SET org_id=%s WHERE user_id=%s", (default_org_id, user["user_id"]))
-            conn.commit()
-            user["org_id"] = default_org_id
-
         if is_admin_email(user["email"]) and not user.get("is_admin"):
             cur.execute("UPDATE users SET is_admin=1 WHERE user_id=%s", (user["user_id"],))
             conn.commit()
@@ -742,7 +596,6 @@ def signin():
             entity_type="user",
             entity_id=user["user_id"],
             details={"email": user["email"], "role": safe_user["role"]},
-            org_id=safe_user.get("org_id"),
             user_id=user["user_id"],
         )
 
@@ -761,7 +614,6 @@ def signout():
             entity_type="user",
             entity_id=current_user.get("user_id"),
             details={"email": current_user.get("email")},
-            org_id=current_user.get("org_id"),
             user_id=current_user.get("user_id"),
         )
     session.clear()
@@ -777,73 +629,48 @@ def admin_check():
 # ---------------- PUBLIC SaaS CATALOG ----------------
 @app.route("/api/catalog/rooms", methods=["GET"])
 def catalog_rooms():
-    organization = resolve_request_organization()
-    if not organization:
-        return jsonify({"message": "Workspace not found"}), 404
-
-    catalog = get_workspace_catalog(organization["org_id"])
-    return jsonify(
-        {
-            "organization": {key: serialize_value(value) for key, value in organization.items()},
-            "rooms": catalog["rooms"],
-        }
-    )
+    return jsonify({"rooms": get_site_catalog()["rooms"]})
 
 
 @app.route("/api/catalog/dining", methods=["GET"])
 def catalog_dining():
-    organization = resolve_request_organization()
-    if not organization:
-        return jsonify({"message": "Workspace not found"}), 404
-
-    catalog = get_workspace_catalog(organization["org_id"])
-    return jsonify(
-        {
-            "organization": {key: serialize_value(value) for key, value in organization.items()},
-            "catalog": catalog["dining"],
-        }
-    )
+    return jsonify({"catalog": get_site_catalog()["dining"]})
 
 
 # ---------------- ADMIN ----------------
 @app.route("/api/admin/catalog/rooms", methods=["GET", "PUT"])
 @require_admin
 def admin_catalog_rooms():
-    current_org_id = resolve_user_org_id(session.get("user", {}))
-
     if request.method == "GET":
-        return jsonify({"rooms": get_workspace_catalog(current_org_id)["rooms"]})
+        return jsonify({"rooms": get_site_catalog()["rooms"]})
 
     data = request.get_json() or {}
     rooms = data.get("rooms")
     if not isinstance(rooms, list):
         return jsonify({"message": "Rooms payload must be a list"}), 400
 
-    catalog = save_workspace_catalog(current_org_id, rooms=rooms)
-    log_audit("catalog.rooms_updated", entity_type="workspace_catalog", entity_id=current_org_id, details={"count": len(rooms)}, org_id=current_org_id)
+    catalog = save_site_catalog(rooms=rooms)
+    log_audit("catalog.rooms_updated", entity_type="site_catalog", entity_id=1, details={"count": len(rooms)})
     return jsonify({"rooms": catalog["rooms"]})
 
 
 @app.route("/api/admin/catalog/dining", methods=["GET", "PUT"])
 @require_admin
 def admin_catalog_dining():
-    current_org_id = resolve_user_org_id(session.get("user", {}))
-
     if request.method == "GET":
-        return jsonify({"catalog": get_workspace_catalog(current_org_id)["dining"]})
+        return jsonify({"catalog": get_site_catalog()["dining"]})
 
     data = request.get_json() or {}
     catalog_payload = data.get("catalog")
     if not isinstance(catalog_payload, dict):
         return jsonify({"message": "Catalog payload must be an object"}), 400
 
-    catalog = save_workspace_catalog(current_org_id, dining=catalog_payload)
+    catalog = save_site_catalog(dining=catalog_payload)
     log_audit(
         "catalog.dining_updated",
-        entity_type="workspace_catalog",
-        entity_id=current_org_id,
+        entity_type="site_catalog",
+        entity_id=1,
         details={"featured_count": len(catalog_payload.get("featuredPlates", []))},
-        org_id=current_org_id,
     )
     return jsonify({"catalog": catalog["dining"]})
 
@@ -858,14 +685,13 @@ def update_user_role(user_id):
     if next_role not in allowed_roles:
         return jsonify({"message": "Invalid role"}), 400
 
-    current_org_id = resolve_user_org_id(session.get("user", {}))
     conn = get_connection()
     cur = conn.cursor()
 
     try:
         cur.execute(
-            "SELECT user_id, org_id, email, role FROM users WHERE user_id=%s AND org_id=%s",
-            (user_id, current_org_id),
+            "SELECT user_id, email, role FROM users WHERE user_id=%s",
+            (user_id,),
         )
         target_user = cur.fetchone()
         if not target_user:
@@ -881,7 +707,6 @@ def update_user_role(user_id):
             entity_type="user",
             entity_id=user_id,
             details={"email": target_user["email"], "from": target_user.get("role"), "to": next_role},
-            org_id=current_org_id,
             user_id=session.get("user", {}).get("user_id"),
         )
         return jsonify({"message": "User role updated"})
@@ -895,18 +720,15 @@ def update_user_role(user_id):
 def get_audit_logs():
     conn = get_connection()
     cur = conn.cursor()
-    current_org_id = resolve_user_org_id(session.get("user", {}))
 
     try:
         cur.execute(
             """
-            SELECT id, org_id, user_id, action, entity_type, entity_id, details_json, ip_address, user_agent, created_at
+            SELECT id, user_id, action, entity_type, entity_id, details_json, ip_address, user_agent, created_at
             FROM audit_logs
-            WHERE org_id=%s
             ORDER BY created_at DESC
             LIMIT 50
-            """,
-            (current_org_id,),
+            """
         )
         logs = serialize_rows(cur.fetchall())
         return jsonify({"logs": logs})
@@ -994,13 +816,12 @@ def add_room():
 def get_bookings():
     conn = get_connection()
     cur = conn.cursor()
-    current_org_id = resolve_user_org_id(session.get("user", {}))
 
     try:
-        cur.execute("SELECT * FROM room_bookings WHERE org_id=%s", (current_org_id,))
+        cur.execute("SELECT * FROM room_bookings")
         rooms = cur.fetchall()
 
-        cur.execute("SELECT * FROM food_orders WHERE org_id=%s", (current_org_id,))
+        cur.execute("SELECT * FROM food_orders")
         foods = cur.fetchall()
 
         return jsonify(
@@ -1019,17 +840,14 @@ def get_bookings():
 def get_users():
     conn = get_connection()
     cur = conn.cursor()
-    current_org_id = resolve_user_org_id(session.get("user", {}))
 
     try:
         cur.execute(
             """
-            SELECT user_id, org_id, username, email, phone, role
+            SELECT user_id, username, email, phone, role
             FROM users
-            WHERE org_id=%s
             ORDER BY user_id DESC
-            """,
-            (current_org_id,),
+            """
         )
         users = cur.fetchall()
         return jsonify(serialize_rows(users))
@@ -1044,70 +862,56 @@ def admin_overview():
     conn = get_connection()
     cur = conn.cursor()
     food_items_column = get_food_items_column()
-    current_org_id = resolve_user_org_id(session.get("user", {}))
 
     try:
         cur.execute(
             """
-            SELECT user_id, org_id, username, email, phone, role
+            SELECT user_id, username, email, phone, role
             FROM users
-            WHERE org_id=%s
             ORDER BY user_id DESC
-            """,
-            (current_org_id,),
+            """
         )
         users = cur.fetchall()
 
         cur.execute(
             f"""
-            SELECT id, org_id, order_title, preferred_date, preferred_time, total_amount, phone, {food_items_column} AS items, created_at
+            SELECT id, order_title, preferred_date, preferred_time, total_amount, phone, {food_items_column} AS items, created_at
             FROM food_orders
-            WHERE org_id=%s
             ORDER BY created_at DESC
-            """,
-            (current_org_id,),
+            """
         )
         food_orders = cur.fetchall()
 
         cur.execute(
             """
-            SELECT id, org_id, name, email, phone, event_type, event_date, guests, created_at
+            SELECT id, name, email, phone, event_type, event_date, guests, created_at
             FROM event_bookings
-            WHERE org_id=%s
             ORDER BY created_at DESC
-            """,
-            (current_org_id,),
+            """
         )
         event_bookings = cur.fetchall()
 
         cur.execute(
             """
-            SELECT id, org_id, room_name, check_in, check_out, amount, payment_phone, created_at
+            SELECT id, room_name, check_in, check_out, amount, payment_phone, created_at
             FROM room_bookings
-            WHERE org_id=%s
             ORDER BY created_at DESC
-            """,
-            (current_org_id,),
+            """
         )
         room_bookings = cur.fetchall()
 
         cur.execute(
             """
-            SELECT id, org_id, user_id, action, entity_type, entity_id, details_json, ip_address, user_agent, created_at
+            SELECT id, user_id, action, entity_type, entity_id, details_json, ip_address, user_agent, created_at
             FROM audit_logs
-            WHERE org_id=%s
             ORDER BY created_at DESC
             LIMIT 20
-            """,
-            (current_org_id,),
+            """
         )
         audit_logs = cur.fetchall()
 
-        organization = get_organization_by_id(current_org_id)
-
         return jsonify(
             {
-                "organization": {key: serialize_value(value) for key, value in organization.items()} if organization else None,
                 "users": serialize_rows(users),
                 "food_orders": serialize_rows(food_orders),
                 "event_bookings": serialize_rows(event_bookings),
@@ -1143,7 +947,6 @@ def food_order():
 
     try:
         data = request.get_json() or {}
-        current_org_id = resolve_user_org_id(session.get("user", {})) or get_default_org_id()
         items = data.get("items")
         if not isinstance(items, (list, dict)):
             items = []
@@ -1158,11 +961,10 @@ def food_order():
             cur.execute(
                 f"""
                 INSERT INTO food_orders
-                (org_id, order_title, preferred_date, preferred_time, total_amount, phone, {food_items_column})
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (order_title, preferred_date, preferred_time, total_amount, phone, {food_items_column})
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    current_org_id,
                     data.get("order_title"),
                     data.get("preferred_date"),
                     data.get("preferred_time"),
@@ -1178,7 +980,6 @@ def food_order():
                 entity_type="food_order",
                 entity_id=order_id,
                 details={"title": data.get("order_title"), "total_amount": data.get("total_amount")},
-                org_id=current_org_id,
                 user_id=session.get("user", {}).get("user_id"),
             )
             return jsonify({"message": "Food order saved"})
@@ -1197,7 +998,6 @@ def event_booking():
 
     try:
         data = request.get_json() or {}
-        current_org_id = resolve_user_org_id(session.get("user", {})) or get_default_org_id()
 
         conn = get_connection()
         cur = conn.cursor()
@@ -1206,11 +1006,10 @@ def event_booking():
             cur.execute(
                 """
                 INSERT INTO event_bookings
-                (org_id, name, email, phone, event_type, event_date, guests)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (name, email, phone, event_type, event_date, guests)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    current_org_id,
                     data.get("name"),
                     data.get("email"),
                     data.get("phone"),
@@ -1226,7 +1025,6 @@ def event_booking():
                 entity_type="event_booking",
                 entity_id=booking_id,
                 details={"event_type": data.get("event_type"), "event_date": data.get("event_date")},
-                org_id=current_org_id,
                 user_id=session.get("user", {}).get("user_id"),
             )
             return jsonify({"message": "Event booking saved"})
@@ -1245,7 +1043,6 @@ def stay_booking():
 
     try:
         data = request.get_json() or {}
-        current_org_id = resolve_user_org_id(session.get("user", {})) or get_default_org_id()
 
         conn = get_connection()
         cur = conn.cursor()
@@ -1254,11 +1051,10 @@ def stay_booking():
             cur.execute(
                 """
                 INSERT INTO room_bookings
-                (org_id, user_id, room_name, check_in, check_out, amount, payment_phone)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (user_id, room_name, check_in, check_out, amount, payment_phone)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    current_org_id,
                     session.get("user", {}).get("user_id"),
                     data.get("room_name"),
                     data.get("check_in"),
@@ -1274,7 +1070,6 @@ def stay_booking():
                 entity_type="room_booking",
                 entity_id=booking_id,
                 details={"room_name": data.get("room_name"), "amount": data.get("amount")},
-                org_id=current_org_id,
                 user_id=session.get("user", {}).get("user_id"),
             )
             return jsonify({"message": "Stay booking saved"})
@@ -1296,7 +1091,6 @@ def room_booking():
 
     try:
         data = request.get_json() or {}
-        current_org_id = resolve_user_org_id(session.get("user", {})) or get_default_org_id()
 
         conn = get_connection()
         cur = conn.cursor()
@@ -1305,11 +1099,10 @@ def room_booking():
             cur.execute(
                 """
                 INSERT INTO room_bookings
-                (org_id, user_id, room_name, check_in, check_out, amount, payment_phone)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (user_id, room_name, check_in, check_out, amount, payment_phone)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    current_org_id,
                     session.get("user", {}).get("user_id"),
                     data.get("room_name"),
                     data.get("check_in"),
@@ -1325,7 +1118,6 @@ def room_booking():
                 entity_type="room_booking",
                 entity_id=booking_id,
                 details={"room_name": data.get("room_name"), "amount": data.get("amount")},
-                org_id=current_org_id,
                 user_id=session.get("user", {}).get("user_id"),
             )
             return jsonify({"message": "Room booking saved"})

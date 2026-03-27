@@ -1,12 +1,6 @@
 
-
-
-
-import axios from 'axios';
 import React, { useEffect, useState } from 'react'
-import Loader from './Loader';
 import { useNavigate } from 'react-router-dom';
-import { buildApiUrl } from '../utils/api';
 import {
   fetchManagedDiningCatalog,
   fetchManagedRooms,
@@ -30,9 +24,6 @@ const Getproducts = () => {
   const today = formatDate(new Date());
 
   // Initialize hooks to help you manage the state of your application
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const[error, setError] = useState("");
   const [roomCollections, setRoomCollections] = useState(() => getManagedRooms().slice(0, 4));
   const [featuredDishes, setFeaturedDishes] = useState(() => getManagedDiningCatalog().featuredPlates);
   const [quickCheckIn, setQuickCheckIn] = useState(today);
@@ -42,43 +33,8 @@ const Getproducts = () => {
   // declare the navigate hook
 
   const navigate  = useNavigate()
-
-  const imageBaseUrl = `${window.location.origin}/static/images/`;
-
-  // Create a function to help you fetch the products from your API
-  const fetchProducts = async() =>{
-    try{
-
-      // Update the loading hook
-      setLoading(true) 
-
-      //.Interact with your end point for fetching the products
-      const response = await axios.get(buildApiUrl('/get_products'))
-
-      //Update the products hook with the response given from the API
-      setProducts(response.data)
-
-      //set the loading hook back to default
-      setLoading(false)
-      
-
-
-    }
-    catch(error){
-      //step 8
-      // if there is an error 
-      // set the laoding hook back to default
-      setLoading(false)
-
-      // update the error hook with a message
-      setError(error.message)
-
-    }
-  }
-
   // We shall use the useEffect hook. It enables us to automatically re-render new features incase of any changes
   useEffect(() => {
-    fetchProducts();
     fetchManagedRooms().then((rooms) => setRoomCollections(rooms.slice(0, 4))).catch(() => {});
     fetchManagedDiningCatalog()
       .then((catalog) => setFeaturedDishes(catalog.featuredPlates || []))
@@ -126,8 +82,6 @@ const Getproducts = () => {
           product_photo: plate.image,
           isFallback: true,
         }))
-      : products.length > 0
-      ? products.slice(0, 4)
       : fallbackDishes;
   const amenityHighlights = [
     {
@@ -233,9 +187,6 @@ const Getproducts = () => {
         </div>
       </section>
 
-      {loading && <Loader />}
-      {error && <h4 className="text-danger mt-4">{error}</h4>}
-
       <section className="feature-sections">
         <div className="feature-panel" id="rooms">
           <div className="feature-panel__heading">
@@ -275,7 +226,7 @@ const Getproducts = () => {
             {resolvedFeaturedDishes.map((product) => (
               <div className="feature-card feature-card--interactive" key={product.product_id || product.product_name}>
                 <img
-                  src={product.isFallback ? product.product_photo : imageBaseUrl + product.product_photo}
+                  src={product.product_photo}
                   alt={product.product_name}
                   className="feature-card__image"
                 />
