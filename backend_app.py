@@ -1,12 +1,15 @@
 import base64
 import json
 import os
+import smtplib
+import time
 from datetime import date, datetime, timedelta
+from email.message import EmailMessage
 from functools import wraps
 
 import pymysql
 import requests
-from flask import Flask, jsonify, request, session
+from flask import Flask, Response, jsonify, request, session, stream_with_context
 from flask_cors import CORS
 from requests.auth import HTTPBasicAuth
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -52,6 +55,18 @@ DB_USER = os.getenv("DB_USER", "calebtonny")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "modcom1234")
 DB_NAME = os.getenv("DB_NAME", "calebtonny_sokogarden")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "caleb@gmail.com").strip().lower()
+KITCHEN_EMAIL = os.getenv("KITCHEN_EMAIL", "tonie@gmail.com").strip().lower()
+KITCHEN_PASSWORD = os.getenv("KITCHEN_PASSWORD", "Caleb123").strip()
+FOOD_ORDER_STATUSES = {"pending", "preparing", "ready", "completed", "cancelled"}
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").strip().lower() == "true"
+EMAIL_FROM = os.getenv("EMAIL_FROM", SMTP_USERNAME or "noreply@elitehotels.com").strip()
+SMS_API_URL = os.getenv("SMS_API_URL", "").strip()
+SMS_API_TOKEN = os.getenv("SMS_API_TOKEN", "").strip()
+SMS_SENDER_ID = os.getenv("SMS_SENDER_ID", "EliteHotels").strip()
 
 
 def get_connection():
@@ -76,6 +91,10 @@ def is_admin_email(email):
     return email.strip().lower() == ADMIN_EMAIL
 
 
+def is_kitchen_email(email):
+    return email.strip().lower() == KITCHEN_EMAIL
+
+
 def verify_password(stored_password, submitted_password):
     if not stored_password:
         return False, False
@@ -95,6 +114,30 @@ def require_admin(view):
         user = session.get("user")
         if not user or not user.get("is_admin"):
             return jsonify({"message": "Unauthorized"}), 403
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def require_kitchen(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user = session.get("user")
+        if not user:
+            return jsonify({"message": "Unauthorized"}), 403
+        if not (user.get("is_admin") or user.get("role") == "kitchen"):
+            return jsonify({"message": "Forbidden"}), 403
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def require_login(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user = session.get("user")
+        if not user:
+            return jsonify({"message": "Unauthorized"}), 401
         return view(*args, **kwargs)
 
     return wrapped
@@ -543,21 +586,26 @@ def create_tables():
         """
         CREATE TABLE IF NOT EXISTS food_orders (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL,
             order_title VARCHAR(255),
             preferred_date DATE,
             preferred_time VARCHAR(20),
             total_amount INT,
             phone VARCHAR(20),
+            status VARCHAR(40) DEFAULT 'pending',
             items JSON,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+    ensure_column(cur, "food_orders", "user_id", "INT NULL")
+    ensure_column(cur, "food_orders", "status", "VARCHAR(40) DEFAULT 'pending'")
 
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS event_bookings (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL,
             name VARCHAR(160),
             email VARCHAR(160),
             phone VARCHAR(30),
@@ -568,6 +616,7 @@ def create_tables():
         )
         """
     )
+    ensure_column(cur, "event_bookings", "user_id", "INT NULL")
 
     cur.execute(
         """
@@ -631,6 +680,18 @@ def get_food_items_column():
             return "items_json"
 
         return "items"
+    finally:
+        cur.close()
+        conn.close()
+
+
+def table_has_column(table_name, column_name):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(f"SHOW COLUMNS FROM {table_name} LIKE %s", (column_name,))
+        return cur.fetchone() is not None
     finally:
         cur.close()
         conn.close()
@@ -766,6 +827,115 @@ def serialize_rows(rows):
     return [{key: serialize_value(value) for key, value in row.items()} for row in rows]
 
 
+def send_email_confirmation(recipient_email, subject, body):
+    if not recipient_email or not SMTP_HOST or not EMAIL_FROM:
+        return False, "Email confirmation skipped: SMTP is not configured."
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = EMAIL_FROM
+    message["To"] = recipient_email
+    message.set_content(body)
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+            if SMTP_USE_TLS:
+                smtp.starttls()
+            if SMTP_USERNAME and SMTP_PASSWORD:
+                smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+            smtp.send_message(message)
+        return True, "Email confirmation sent."
+    except Exception as error:
+        print("EMAIL CONFIRMATION ERROR:", str(error))
+        return False, str(error)
+
+
+def send_sms_confirmation(phone, message):
+    if not phone or not SMS_API_URL:
+        return False, "SMS confirmation skipped: SMS provider is not configured."
+
+    try:
+        formatted_phone = format_phone(phone)
+        headers = {"Content-Type": "application/json"}
+        if SMS_API_TOKEN:
+            headers["Authorization"] = f"Bearer {SMS_API_TOKEN}"
+
+        response = requests.post(
+            SMS_API_URL,
+            json={
+                "to": formatted_phone,
+                "message": message,
+                "sender_id": SMS_SENDER_ID,
+            },
+            headers=headers,
+            timeout=20,
+        )
+        response.raise_for_status()
+        return True, "SMS confirmation sent."
+    except Exception as error:
+        print("SMS CONFIRMATION ERROR:", str(error))
+        return False, str(error)
+
+
+def send_guest_confirmation(email=None, phone=None, email_subject="", email_body="", sms_body=""):
+    results = []
+
+    if email and email_subject and email_body:
+        results.append(("email",) + send_email_confirmation(email, email_subject, email_body))
+
+    if phone and sms_body:
+        results.append(("sms",) + send_sms_confirmation(phone, sms_body))
+
+    return results
+
+
+def get_latest_record_ids(cursor):
+    latest_ids = {}
+
+    cursor.execute("SELECT COALESCE(MAX(id), 0) AS latest_id FROM food_orders")
+    latest_ids["food_order"] = int((cursor.fetchone() or {}).get("latest_id") or 0)
+
+    cursor.execute("SELECT COALESCE(MAX(id), 0) AS latest_id FROM event_bookings")
+    latest_ids["event_booking"] = int((cursor.fetchone() or {}).get("latest_id") or 0)
+
+    cursor.execute("SELECT COALESCE(MAX(id), 0) AS latest_id FROM room_bookings")
+    latest_ids["room_booking"] = int((cursor.fetchone() or {}).get("latest_id") or 0)
+
+    return latest_ids
+
+
+def sse_payload(event_name, payload):
+    return f"event: {event_name}\ndata: {json.dumps(payload)}\n\n"
+
+
+def format_amount_text(value):
+    digits = "".join(character for character in str(value or "") if character.isdigit())
+    amount = int(digits) if digits else 0
+    return f"KSh {amount:,}"
+
+
+def normalize_food_order_status(status):
+    normalized_status = (status or "pending").strip().lower()
+    return normalized_status if normalized_status in FOOD_ORDER_STATUSES else "pending"
+
+
+def hydrate_food_orders(rows):
+    orders = serialize_rows(rows)
+
+    for order in orders:
+        order["status"] = normalize_food_order_status(order.get("status"))
+        items_value = order.get("items")
+        if isinstance(items_value, str):
+            try:
+                order["items"] = json.loads(items_value)
+            except json.JSONDecodeError:
+                order["items"] = []
+        elif items_value is None:
+            order["items"] = []
+
+    return orders
+
+
 def build_safe_user(user):
     role = user.get("role") or ("owner" if is_admin_email(user["email"]) else "guest")
     is_admin = bool(user.get("is_admin")) or role in {"owner", "admin"} or is_admin_email(user["email"])
@@ -776,6 +946,17 @@ def build_safe_user(user):
         "phone": user.get("phone"),
         "role": role,
         "is_admin": is_admin,
+    }
+
+
+def build_kitchen_user():
+    return {
+        "user_id": 0,
+        "username": "Kitchen Staff",
+        "email": KITCHEN_EMAIL,
+        "phone": "",
+        "role": "kitchen",
+        "is_admin": False,
     }
 
 
@@ -881,6 +1062,12 @@ def signin():
     if not email or not password:
         return jsonify({"message": "Email and password are required"}), 400
 
+    if is_kitchen_email(email) and password == KITCHEN_PASSWORD:
+        safe_user = build_kitchen_user()
+        session["user"] = safe_user
+        session.permanent = True
+        return jsonify({"message": "Kitchen login successful", "user": safe_user})
+
     conn = get_connection()
     cur = conn.cursor()
 
@@ -941,6 +1128,165 @@ def signout():
         )
     session.clear()
     return jsonify({"message": "Signed out"})
+
+
+@app.route("/api/me", methods=["GET"])
+def get_current_user():
+    user = session.get("user")
+    if not user:
+        return jsonify({"user": None})
+
+    return jsonify({"user": user})
+
+
+@app.route("/api/profile/overview", methods=["GET"])
+@require_login
+def profile_overview():
+    current_user = session.get("user") or {}
+    user_id = current_user.get("user_id")
+    email = (current_user.get("email") or "").strip().lower()
+    phone = (current_user.get("phone") or "").strip()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    food_items_column = get_food_items_column()
+    food_orders_has_user_id = table_has_column("food_orders", "user_id")
+    food_orders_has_status = table_has_column("food_orders", "status")
+    event_bookings_has_user_id = table_has_column("event_bookings", "user_id")
+    room_bookings_has_user_id = table_has_column("room_bookings", "user_id")
+
+    try:
+        if room_bookings_has_user_id:
+            room_query = """
+                SELECT id, room_name, check_in, check_out, amount, payment_phone, created_at
+                FROM room_bookings
+                WHERE user_id=%s
+                ORDER BY created_at DESC
+            """
+            cur.execute(room_query, (user_id,))
+            room_bookings = serialize_rows(cur.fetchall())
+        else:
+            room_bookings = []
+
+        food_status_select = "status" if food_orders_has_status else "'pending'"
+
+        if food_orders_has_user_id and phone:
+            cur.execute(
+                f"""
+                SELECT id, order_title, preferred_date, preferred_time, total_amount, phone, {food_status_select} AS status, {food_items_column} AS items, created_at
+                FROM food_orders
+                WHERE user_id=%s OR phone=%s
+                ORDER BY created_at DESC
+                """,
+                (user_id, phone),
+            )
+        elif food_orders_has_user_id:
+            cur.execute(
+                f"""
+                SELECT id, order_title, preferred_date, preferred_time, total_amount, phone, {food_status_select} AS status, {food_items_column} AS items, created_at
+                FROM food_orders
+                WHERE user_id=%s
+                ORDER BY created_at DESC
+                """,
+                (user_id,),
+            )
+        elif phone:
+            cur.execute(
+                f"""
+                SELECT id, order_title, preferred_date, preferred_time, total_amount, phone, {food_status_select} AS status, {food_items_column} AS items, created_at
+                FROM food_orders
+                WHERE phone=%s
+                ORDER BY created_at DESC
+                """,
+                (phone,),
+            )
+        else:
+            food_orders = []
+
+        if food_orders_has_user_id or phone:
+            food_orders = hydrate_food_orders(cur.fetchall())
+        else:
+            food_orders = []
+
+        if event_bookings_has_user_id and email and phone:
+            cur.execute(
+                """
+                SELECT id, name, email, phone, event_type, event_date, guests, created_at
+                FROM event_bookings
+                WHERE user_id=%s OR LOWER(email)=%s OR phone=%s
+                ORDER BY created_at DESC
+                """,
+                (user_id, email, phone),
+            )
+        elif event_bookings_has_user_id and email:
+            cur.execute(
+                """
+                SELECT id, name, email, phone, event_type, event_date, guests, created_at
+                FROM event_bookings
+                WHERE user_id=%s OR LOWER(email)=%s
+                ORDER BY created_at DESC
+                """,
+                (user_id, email),
+            )
+        elif event_bookings_has_user_id and phone:
+            cur.execute(
+                """
+                SELECT id, name, email, phone, event_type, event_date, guests, created_at
+                FROM event_bookings
+                WHERE user_id=%s OR phone=%s
+                ORDER BY created_at DESC
+                """,
+                (user_id, phone),
+            )
+        elif email and phone:
+            cur.execute(
+                """
+                SELECT id, name, email, phone, event_type, event_date, guests, created_at
+                FROM event_bookings
+                WHERE LOWER(email)=%s OR phone=%s
+                ORDER BY created_at DESC
+                """,
+                (email, phone),
+            )
+        elif email:
+            cur.execute(
+                """
+                SELECT id, name, email, phone, event_type, event_date, guests, created_at
+                FROM event_bookings
+                WHERE LOWER(email)=%s
+                ORDER BY created_at DESC
+                """,
+                (email,),
+            )
+        elif phone:
+            cur.execute(
+                """
+                SELECT id, name, email, phone, event_type, event_date, guests, created_at
+                FROM event_bookings
+                WHERE phone=%s
+                ORDER BY created_at DESC
+                """,
+                (phone,),
+            )
+        else:
+            event_bookings = []
+
+        if event_bookings_has_user_id or email or phone:
+            event_bookings = serialize_rows(cur.fetchall())
+        else:
+            event_bookings = []
+
+        return jsonify(
+            {
+                "user": current_user,
+                "food_orders": food_orders,
+                "event_bookings": event_bookings,
+                "room_bookings": room_bookings,
+            }
+        )
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.route("/api/admin/check", methods=["GET"])
@@ -1204,12 +1550,12 @@ def admin_overview():
 
         cur.execute(
             f"""
-            SELECT id, order_title, preferred_date, preferred_time, total_amount, phone, {food_items_column} AS items, created_at
+            SELECT id, order_title, preferred_date, preferred_time, total_amount, phone, status, {food_items_column} AS items, created_at
             FROM food_orders
             ORDER BY created_at DESC
             """
         )
-        food_orders = cur.fetchall()
+        food_orders = hydrate_food_orders(cur.fetchall())
 
         cur.execute(
             """
@@ -1242,7 +1588,7 @@ def admin_overview():
         return jsonify(
             {
                 "users": serialize_rows(users),
-                "food_orders": serialize_rows(food_orders),
+                "food_orders": food_orders,
                 "event_bookings": serialize_rows(event_bookings),
                 "room_bookings": serialize_rows(room_bookings),
                 "audit_logs": serialize_rows(audit_logs),
@@ -1251,6 +1597,165 @@ def admin_overview():
     finally:
         cur.close()
         conn.close()
+
+
+@app.route("/api/kitchen/orders", methods=["GET"])
+@require_kitchen
+def kitchen_orders():
+    conn = get_connection()
+    cur = conn.cursor()
+    food_items_column = get_food_items_column()
+
+    try:
+        prune_expired_records(cur)
+        conn.commit()
+        cur.execute(
+            f"""
+            SELECT id, order_title, preferred_date, preferred_time, total_amount, phone, status, {food_items_column} AS items, created_at
+            FROM food_orders
+            ORDER BY created_at DESC
+            """
+        )
+        orders = hydrate_food_orders(cur.fetchall())
+
+        return jsonify({"food_orders": orders})
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/api/food_orders/<int:order_id>/status", methods=["PUT"])
+@require_kitchen
+def update_food_order_status(order_id):
+    data = request.get_json() or {}
+    next_status = normalize_food_order_status(data.get("status"))
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("SELECT id, status, order_title FROM food_orders WHERE id=%s", (order_id,))
+        order = cur.fetchone()
+
+        if not order:
+            return jsonify({"message": "Food order not found"}), 404
+
+        current_status = normalize_food_order_status(order.get("status"))
+        if current_status == next_status:
+            return jsonify({"message": "Order status is already up to date", "status": next_status})
+
+        cur.execute("UPDATE food_orders SET status=%s WHERE id=%s", (next_status, order_id))
+        conn.commit()
+        log_audit(
+            "food_order.status_updated",
+            entity_type="food_order",
+            entity_id=order_id,
+            details={
+                "title": order.get("order_title"),
+                "previous_status": current_status,
+                "status": next_status,
+            },
+            user_id=session.get("user", {}).get("user_id"),
+        )
+        return jsonify({"message": "Food order status updated", "status": next_status})
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/api/admin/stream", methods=["GET"])
+@require_admin
+def admin_stream():
+    @stream_with_context
+    def generate():
+        conn = get_connection()
+        cur = conn.cursor()
+
+        try:
+            baseline_ids = get_latest_record_ids(cur)
+            yield sse_payload("connected", {"scope": "admin", "latest_ids": baseline_ids})
+
+            while True:
+                time.sleep(5)
+                cur.connection.ping(reconnect=True)
+                current_ids = get_latest_record_ids(cur)
+
+                changes = [
+                    record_type
+                    for record_type, latest_id in current_ids.items()
+                    if latest_id > baseline_ids.get(record_type, 0)
+                ]
+
+                if changes:
+                    baseline_ids = current_ids
+                    yield sse_payload(
+                        "dashboard_update",
+                        {"scope": "admin", "changes": changes, "latest_ids": current_ids},
+                    )
+                else:
+                    yield ": keep-alive\n\n"
+        finally:
+            cur.close()
+            conn.close()
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.route("/api/kitchen/stream", methods=["GET"])
+@require_kitchen
+def kitchen_stream():
+    @stream_with_context
+    def generate():
+        conn = get_connection()
+        cur = conn.cursor()
+
+        try:
+            cur.execute("SELECT COALESCE(MAX(id), 0) AS latest_id FROM food_orders")
+            latest_food_order_id = int((cur.fetchone() or {}).get("latest_id") or 0)
+            yield sse_payload(
+                "connected",
+                {"scope": "kitchen", "latest_ids": {"food_order": latest_food_order_id}},
+            )
+
+            while True:
+                time.sleep(5)
+                cur.connection.ping(reconnect=True)
+                cur.execute("SELECT COALESCE(MAX(id), 0) AS latest_id FROM food_orders")
+                current_food_order_id = int((cur.fetchone() or {}).get("latest_id") or 0)
+
+                if current_food_order_id > latest_food_order_id:
+                    latest_food_order_id = current_food_order_id
+                    yield sse_payload(
+                        "dashboard_update",
+                        {
+                            "scope": "kitchen",
+                            "changes": ["food_order"],
+                            "latest_ids": {"food_order": current_food_order_id},
+                        },
+                    )
+                else:
+                    yield ": keep-alive\n\n"
+        finally:
+            cur.close()
+            conn.close()
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.route("/api/admin/payments", methods=["GET"])
@@ -1291,15 +1796,17 @@ def food_order():
             cur.execute(
                 f"""
                 INSERT INTO food_orders
-                (order_title, preferred_date, preferred_time, total_amount, phone, {food_items_column})
-                VALUES (%s, %s, %s, %s, %s, %s)
+                (user_id, order_title, preferred_date, preferred_time, total_amount, phone, status, {food_items_column})
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
+                    session.get("user", {}).get("user_id"),
                     data.get("order_title"),
                     data.get("preferred_date"),
                     data.get("preferred_time"),
                     data.get("total_amount"),
                     data.get("payment_phone"),
+                    "pending",
                     items_json,
                 ),
             )
@@ -1311,6 +1818,25 @@ def food_order():
                 entity_id=order_id,
                 details={"title": data.get("order_title"), "total_amount": data.get("total_amount")},
                 user_id=session.get("user", {}).get("user_id"),
+            )
+            current_user = session.get("user", {}) or {}
+            send_guest_confirmation(
+                email=current_user.get("email"),
+                phone=data.get("payment_phone"),
+                email_subject="EliteHotels Food Order Confirmation",
+                email_body=(
+                    f"Hello {current_user.get('username') or 'Guest'},\n\n"
+                    f"Your food order '{data.get('order_title') or 'Food Order'}' has been received.\n"
+                    f"Preferred date: {data.get('preferred_date') or '-'}\n"
+                    f"Preferred time: {data.get('preferred_time') or '-'}\n"
+                    f"Total amount: {format_amount_text(data.get('total_amount'))}\n\n"
+                    "We will prepare it and keep you updated."
+                ),
+                sms_body=(
+                    f"EliteHotels: Your food order '{data.get('order_title') or 'Food Order'}' "
+                    f"for {data.get('preferred_date') or '-'} at {data.get('preferred_time') or '-'} "
+                    f"has been received."
+                ),
             )
             return jsonify({"message": "Food order saved"})
         finally:
@@ -1342,10 +1868,11 @@ def event_booking():
             cur.execute(
                 """
                 INSERT INTO event_bookings
-                (name, email, phone, event_type, event_date, guests)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                (user_id, name, email, phone, event_type, event_date, guests)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
+                    session.get("user", {}).get("user_id"),
                     data.get("name"),
                     data.get("email"),
                     data.get("phone"),
@@ -1362,6 +1889,22 @@ def event_booking():
                 entity_id=booking_id,
                 details={"event_type": data.get("event_type"), "event_date": data.get("event_date")},
                 user_id=session.get("user", {}).get("user_id"),
+            )
+            send_guest_confirmation(
+                email=data.get("email"),
+                phone=data.get("phone"),
+                email_subject="EliteHotels Event Request Confirmation",
+                email_body=(
+                    f"Hello {data.get('name') or 'Guest'},\n\n"
+                    f"Your event request for '{data.get('event_type') or 'Event'}' has been received.\n"
+                    f"Event date: {data.get('event_date') or '-'}\n"
+                    f"Guests: {data.get('guests') or 0}\n\n"
+                    "Our team will review it and contact you shortly."
+                ),
+                sms_body=(
+                    f"EliteHotels: Your event request for '{data.get('event_type') or 'Event'}' on "
+                    f"{data.get('event_date') or '-'} has been received."
+                ),
             )
             return jsonify({"message": "Event booking saved"})
         finally:
@@ -1408,6 +1951,25 @@ def stay_booking():
                 entity_id=booking_id,
                 details={"room_name": data.get("room_name"), "amount": data.get("amount")},
                 user_id=session.get("user", {}).get("user_id"),
+            )
+            current_user = session.get("user", {}) or {}
+            send_guest_confirmation(
+                email=current_user.get("email"),
+                phone=data.get("payment_phone") or data.get("phone"),
+                email_subject="EliteHotels Stay Booking Confirmation",
+                email_body=(
+                    f"Hello {current_user.get('username') or data.get('customer_name') or 'Guest'},\n\n"
+                    f"Your stay booking for '{data.get('room_name') or 'Hotel Room'}' has been received.\n"
+                    f"Check-in: {data.get('check_in') or '-'}\n"
+                    f"Check-out: {data.get('check_out') or '-'}\n"
+                    f"Amount: {format_amount_text(data.get('amount'))}\n\n"
+                    "Thank you for choosing EliteHotels."
+                ),
+                sms_body=(
+                    f"EliteHotels: Your stay booking for '{data.get('room_name') or 'Hotel Room'}' "
+                    f"from {data.get('check_in') or '-'} to {data.get('check_out') or '-'} "
+                    "has been received."
+                ),
             )
             return jsonify({"message": "Stay booking saved"})
         finally:
@@ -1457,6 +2019,25 @@ def room_booking():
                 entity_id=booking_id,
                 details={"room_name": data.get("room_name"), "amount": data.get("amount")},
                 user_id=session.get("user", {}).get("user_id"),
+            )
+            current_user = session.get("user", {}) or {}
+            send_guest_confirmation(
+                email=current_user.get("email"),
+                phone=data.get("payment_phone"),
+                email_subject="EliteHotels Room Booking Confirmation",
+                email_body=(
+                    f"Hello {current_user.get('username') or 'Guest'},\n\n"
+                    f"Your room booking for '{data.get('room_name') or 'Hotel Room'}' has been received.\n"
+                    f"Check-in: {data.get('check_in') or '-'}\n"
+                    f"Check-out: {data.get('check_out') or '-'}\n"
+                    f"Amount: {format_amount_text(data.get('amount'))}\n\n"
+                    "We look forward to hosting you."
+                ),
+                sms_body=(
+                    f"EliteHotels: Your room booking for '{data.get('room_name') or 'Hotel Room'}' "
+                    f"from {data.get('check_in') or '-'} to {data.get('check_out') or '-'} "
+                    "has been received."
+                ),
             )
             return jsonify({"message": "Room booking saved"})
         finally:

@@ -40,3 +40,8 @@ export const isAdminAuthenticated = () => {
   const session = getAdminSession();
   return Boolean(session?.isAdmin);
 };
+
+export const isKitchenAuthenticated = () => {
+  const session = getAdminSession();
+  return Boolean(session?.role === 'kitchen' || session?.isAdmin);
+};

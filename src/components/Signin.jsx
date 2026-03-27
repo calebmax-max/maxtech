@@ -52,6 +52,20 @@ const Signin = () => {
       setLoading('');
       setSuccess(response.data.message);
 
+      if (signedInUser?.role === 'kitchen') {
+        setAdminSession({
+          email: signedInUser.email,
+          name: signedInUser.username || 'Kitchen Staff',
+          isAdmin: false,
+          role: 'kitchen',
+        });
+
+        setTimeout(() => {
+          navigate('/kitchen', { replace: true });
+        }, RESPONSE_DISPLAY_MS);
+        return;
+      }
+
       if (signedInUser?.is_admin) {
         setAdminSession({
           email: signedInUser.email,
@@ -67,7 +81,7 @@ const Signin = () => {
       }
 
       setTimeout(() => {
-        navigate('/');
+        navigate('/profile');
       }, RESPONSE_DISPLAY_MS);
     } catch (requestError) {
       setLoading('');

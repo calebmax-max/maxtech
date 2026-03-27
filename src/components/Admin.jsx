@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import {
   getManagedDiningCatalog,
@@ -14,6 +14,11 @@ import {
   getAdminSession,
   isAdminAuthenticated,
 } from '../utils/adminSession';
+import {
+  getBrowserNotificationPermission,
+  requestBrowserNotificationPermission,
+  showBrowserNotification,
+} from '../utils/dashboardNotifications';
 
 const defaultRoomForm = {
   name: '',
@@ -69,6 +74,15 @@ const adminQuickLinks = [
   { label: 'Shortcuts', target: 'admin-shortcuts' },
 ];
 
+const ALERT_DISPLAY_MS = 60000;
+const FOOD_ORDER_STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'preparing', label: 'Preparing' },
+  { value: 'ready', label: 'Ready' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
 const Admin = () => {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
@@ -85,12 +99,26 @@ const Admin = () => {
   const [status, setStatus] = useState('');
   const [remoteDataError, setRemoteDataError] = useState('');
   const [adminSession, setAdminSessionState] = useState(getAdminSession());
+  const [notificationPermission, setNotificationPermission] = useState(
+    getBrowserNotificationPermission()
+  );
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [statusUpdateOrderId, setStatusUpdateOrderId] = useState(null);
+  const hasLoadedRef = useRef(false);
+  const knownIdsRef = useRef({
+    foodOrders: new Set(),
+    eventBookings: new Set(),
+    roomBookings: new Set(),
+  });
 
-  const refreshData = async () => {
+  const refreshData = async ({ notify = true, silent = false } = {}) => {
     setRooms(getManagedRooms());
     setCatalog(getManagedDiningCatalog());
     setLocalBookings(getStoredRoomBookings());
     setAdminSessionState(getAdminSession());
+    if (!silent) {
+      setStatus('Refreshing admin data...');
+    }
 
     try {
       const versionResponse = await axios.get(buildApiUrl('/api/debug/version'), {
@@ -106,12 +134,70 @@ const Admin = () => {
         withCredentials: true,
       });
 
-      setUsers(response.data.users || []);
-      setFoodOrders(response.data.food_orders || []);
-      setEventBookings(response.data.event_bookings || []);
-      setRoomBookings(response.data.room_bookings || []);
+      const nextUsers = response.data.users || [];
+      const nextFoodOrders = response.data.food_orders || [];
+      const nextEventBookings = response.data.event_bookings || [];
+      const nextRoomBookings = response.data.room_bookings || [];
+
+      const newFoodOrders = nextFoodOrders.filter(
+        (order) => !knownIdsRef.current.foodOrders.has(order.id)
+      );
+      const newEventBookings = nextEventBookings.filter(
+        (booking) => !knownIdsRef.current.eventBookings.has(booking.id)
+      );
+      const newRoomBookings = nextRoomBookings.filter(
+        (booking) => !knownIdsRef.current.roomBookings.has(booking.id)
+      );
+
+      setUsers(nextUsers);
+      setFoodOrders(nextFoodOrders);
+      setEventBookings(nextEventBookings);
+      setRoomBookings(nextRoomBookings);
+      knownIdsRef.current = {
+        foodOrders: new Set(nextFoodOrders.map((order) => order.id)),
+        eventBookings: new Set(nextEventBookings.map((booking) => booking.id)),
+        roomBookings: new Set(nextRoomBookings.map((booking) => booking.id)),
+      };
+      setStatus('');
       setRemoteDataError('');
+
+      if (hasLoadedRef.current && notify) {
+        const parts = [];
+
+        if (newFoodOrders.length > 0) {
+          parts.push(
+            newFoodOrders.length === 1
+              ? `New food order: ${newFoodOrders[0].order_title || 'Food Order'}`
+              : `${newFoodOrders.length} new food orders`
+          );
+        }
+
+        if (newEventBookings.length > 0) {
+          parts.push(
+            newEventBookings.length === 1
+              ? `New event booking: ${newEventBookings[0].event_type || 'Event'}`
+              : `${newEventBookings.length} new event bookings`
+          );
+        }
+
+        if (newRoomBookings.length > 0) {
+          parts.push(
+            newRoomBookings.length === 1
+              ? `New room booking: ${newRoomBookings[0].room_name || 'Room'}`
+              : `${newRoomBookings.length} new room bookings`
+          );
+        }
+
+        if (parts.length > 0) {
+          const message = parts.join(' | ');
+          setNotificationMessage(message);
+          showBrowserNotification('EliteHotels Admin Alert', message);
+        }
+      }
+
+      hasLoadedRef.current = true;
     } catch (error) {
+      setStatus('');
       setUsers([]);
       setFoodOrders([]);
       setEventBookings([]);
@@ -135,8 +221,46 @@ const Admin = () => {
   };
 
   useEffect(() => {
-    refreshData();
+    refreshData({ notify: false });
+    if (typeof window === 'undefined' || typeof window.EventSource === 'undefined') {
+      setRemoteDataError((currentMessage) =>
+        currentMessage || 'Live admin updates are not supported in this browser.'
+      );
+      return undefined;
+    }
+
+    const eventSource = new window.EventSource(buildApiUrl('/api/admin/stream'), {
+      withCredentials: true,
+    });
+
+    eventSource.addEventListener('dashboard_update', () => {
+      refreshData({ notify: true, silent: true });
+    });
+
+    eventSource.onerror = () => {
+      setRemoteDataError((currentMessage) =>
+        currentMessage || 'Live admin updates are temporarily unavailable. Refresh to reconnect.'
+      );
+    };
+
+    return () => {
+      eventSource.close();
+    };
   }, []);
+
+  useEffect(() => {
+    if (!notificationMessage) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setNotificationMessage('');
+    }, ALERT_DISPLAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [notificationMessage]);
 
   const foodMenuItems = useMemo(() => {
     const featuredItems = catalog.featuredPlates.map((plate) => ({
@@ -202,7 +326,7 @@ const Admin = () => {
         tone: 'olive',
       },
     ];
-  }, [catalog.categories, eventBookings.length, foodOrders.length, roomBookings.length, rooms.length, users.length]);
+  }, [catalog.categories, catalog.featuredPlates.length, eventBookings.length, foodOrders.length, roomBookings.length, rooms.length, users.length]);
 
   if (!isAdminAuthenticated()) {
     return <Navigate to="/signin" replace />;
@@ -478,6 +602,30 @@ const Admin = () => {
     }
   };
 
+  const handleFoodOrderStatusChange = async (orderId, nextStatus) => {
+    setStatusUpdateOrderId(orderId);
+    setRemoteDataError('');
+
+    try {
+      await axios.put(
+        buildApiUrl(`/api/food_orders/${orderId}/status`),
+        { status: nextStatus },
+        { withCredentials: true }
+      );
+      setStatus(`Updated food order #${orderId} to ${nextStatus}.`);
+      await refreshData({ notify: false, silent: true });
+    } catch (error) {
+      setRemoteDataError(error.response?.data?.message || 'Unable to update food order status.');
+    } finally {
+      setStatusUpdateOrderId(null);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    const permission = await requestBrowserNotificationPermission();
+    setNotificationPermission(permission);
+  };
+
   return (
     <section className="admin-shell">
       <div className="admin-shell__hero">
@@ -521,6 +669,12 @@ const Admin = () => {
 
         {status && <div className="auth-alert auth-alert--success">{status}</div>}
         {remoteDataError && <div className="auth-alert auth-alert--error">{remoteDataError}</div>}
+        {notificationPermission === 'unsupported' && (
+          <div className="auth-alert auth-alert--info">
+            Browser notifications are not supported here, but the dashboard will still auto-refresh.
+          </div>
+        )}
+        {notificationMessage && <div className="auth-alert auth-alert--success">{notificationMessage}</div>}
         {backendVersion && (
           <div className="auth-alert auth-alert--info">
             Live backend version: {backendVersion.version}
@@ -536,9 +690,18 @@ const Admin = () => {
             </div>
 
             <div className="admin-actions">
-              <button type="button" className="admin-board__refresh" onClick={refreshData}>
+              <button type="button" className="admin-board__refresh" onClick={() => refreshData()}>
                 Refresh Data
               </button>
+              {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+                <button
+                  type="button"
+                  className="admin-board__refresh"
+                  onClick={handleEnableNotifications}
+                >
+                  Enable Notifications
+                </button>
+              )}
               <button
                 type="button"
                 className="admin-board__refresh admin-board__refresh--ghost"
@@ -846,6 +1009,7 @@ const Admin = () => {
                           <th>When</th>
                           <th>Phone</th>
                           <th>Total</th>
+                          <th>Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -855,6 +1019,22 @@ const Admin = () => {
                             <td>{order.preferred_date} {order.preferred_time}</td>
                             <td>{order.phone || '-'}</td>
                             <td>KSh {Number(order.total_amount || 0).toLocaleString()}</td>
+                            <td>
+                              <select
+                                className="admin-input"
+                                value={order.status || 'pending'}
+                                onChange={(event) =>
+                                  handleFoodOrderStatusChange(order.id, event.target.value)
+                                }
+                                disabled={statusUpdateOrderId === order.id}
+                              >
+                                {FOOD_ORDER_STATUS_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

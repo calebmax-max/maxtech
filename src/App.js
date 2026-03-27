@@ -15,16 +15,24 @@ import Bookings from './components/Bookings';
 import Contactus from './components/Contactus';
 import EventInquiry from './components/EventInquiry';
 import Admin from './components/Admin';
-import { isAdminAuthenticated } from './utils/adminSession';
+import Kitchen from './components/Kitchen';
+import Profile from './components/Profile';
+import { isAdminAuthenticated, isKitchenAuthenticated } from './utils/adminSession';
+import { buildApiUrl } from './utils/api';
 axios.defaults.withCredentials = true;
 
 function AdminRoute() {
   return isAdminAuthenticated() ? <Admin /> : <Navigate to="/signin" replace />;
 }
 
+function KitchenRoute() {
+  return isKitchenAuthenticated() ? <Kitchen /> : <Navigate to="/signin" replace />;
+}
+
 function AppLayout() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const isHomePage = location.pathname === '/';
 
   useEffect(() => {
@@ -38,6 +46,46 @@ function AppLayout() {
       behavior: 'auto',
     });
   }, [location.key]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCurrentUser = async () => {
+      try {
+        const response = await axios.get(buildApiUrl('/api/me'), {
+          withCredentials: true,
+        });
+
+        if (active) {
+          setCurrentUser(response.data.user || null);
+        }
+      } catch (error) {
+        if (active) {
+          setCurrentUser(null);
+        }
+      }
+    };
+
+    loadCurrentUser();
+
+    return () => {
+      active = false;
+    };
+  }, [location.pathname]);
+
+  const handleSignOut = async () => {
+    try {
+      await axios.post(buildApiUrl('/api/signout'), {}, { withCredentials: true });
+    } catch (error) {
+      // Ignore sign-out request errors and continue clearing local state.
+    }
+
+    setCurrentUser(null);
+    window.sessionStorage.removeItem('elitehotels-admin-session');
+    window.location.href = '/signin';
+  };
+
+  const isStaffUser = currentUser?.is_admin || currentUser?.role === 'kitchen';
 
   return (
     <div className="App">
@@ -68,8 +116,24 @@ function AppLayout() {
             <Link to="/dining" className="site-nav__link">Dining</Link>
             <Link to="/bookings" className="site-nav__link">Bookings</Link>
             <Link to="/contactus" className="site-nav__link">Contact Us</Link>
-            <NavLink to="/signin" className="site-nav__link">Sign In</NavLink>
-            <NavLink to="/signup" className="site-nav__link">Sign Up</NavLink>
+            {currentUser ? (
+              <>
+                <NavLink
+                  to={isStaffUser ? (currentUser.role === 'kitchen' ? '/kitchen' : '/admin') : '/profile'}
+                  className="site-nav__link site-nav__link--profile"
+                >
+                  Profile
+                </NavLink>
+                <button type="button" className="site-nav__link site-nav__signout" onClick={handleSignOut}>
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <NavLink to="/signin" className="site-nav__link">Sign In</NavLink>
+                <NavLink to="/signup" className="site-nav__link">Sign Up</NavLink>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -83,6 +147,8 @@ function AppLayout() {
         <Route path="/dining" element={<Dining />} />
         <Route path="/bookings" element={<Bookings />} />
         <Route path="/admin" element={<AdminRoute />} />
+        <Route path="/kitchen" element={<KitchenRoute />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/contactus" element={<Contactus />} />
         <Route path="/events" element={<EventInquiry />} />
         
@@ -112,8 +178,16 @@ function AppLayout() {
             <Link to="/dining">Dining</Link>
             <Link to="/bookings">Bookings</Link>
             <Link to="/contactus">Contact Us</Link>
-            <NavLink to="/signin">Sign In</NavLink>
-            <NavLink to="/signup">Sign Up</NavLink>
+            {currentUser ? (
+              <NavLink to={isStaffUser ? (currentUser.role === 'kitchen' ? '/kitchen' : '/admin') : '/profile'}>
+                {isStaffUser ? 'Dashboard' : 'My Profile'}
+              </NavLink>
+            ) : (
+              <>
+                <NavLink to="/signin">Sign In</NavLink>
+                <NavLink to="/signup">Sign Up</NavLink>
+              </>
+            )}
           </div>
 
           <div className="site-footer__contact">
