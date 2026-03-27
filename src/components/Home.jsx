@@ -10,7 +10,6 @@ import { buildApiUrl } from '../utils/api';
 import {
   fetchManagedDiningCatalog,
   fetchManagedRooms,
-  fetchWorkspaceProfile,
   getManagedDiningCatalog,
   getManagedRooms,
 } from '../utils/adminCatalog';
@@ -34,7 +33,6 @@ const Getproducts = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const[error, setError] = useState("");
-  const [workspace, setWorkspace] = useState(null);
   const [roomCollections, setRoomCollections] = useState(() => getManagedRooms().slice(0, 4));
   const [featuredDishes, setFeaturedDishes] = useState(() => getManagedDiningCatalog().featuredPlates);
   const [quickCheckIn, setQuickCheckIn] = useState(today);
@@ -85,7 +83,6 @@ const Getproducts = () => {
     fetchManagedDiningCatalog()
       .then((catalog) => setFeaturedDishes(catalog.featuredPlates || []))
       .catch(() => {});
-    fetchWorkspaceProfile().then(setWorkspace).catch(() => {});
   }, []);
 
   //Backup dishes if the API returns no data
@@ -153,7 +150,7 @@ const Getproducts = () => {
         <div className="hotel-hero__overlay">
           <div className="hotel-hero__content">
             <p className="hotel-hero__eyebrow">Luxury Stay And Fine Dining</p>
-            <h1>{workspace?.name || 'ELITE HOTELS'}</h1>
+            <h1>ELITE HOTELS</h1>
             <h2>WELCOME</h2>
             <div className="hotel-hero__divider"></div>
             <p className="hotel-hero__subtitle">

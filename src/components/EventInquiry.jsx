@@ -5,6 +5,23 @@ import Loader from './Loader';
 //submitEventBooking → API function that sends event booking details to your backend.
 import { submitEventBooking } from '../utils/eventBookingApi';
 
+const toDisplayMessage = (value, fallback) => {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+
+  if (value && typeof value === 'object') {
+    if (typeof value.errorMessage === 'string' && value.errorMessage.trim()) {
+      return value.errorMessage;
+    }
+    if (typeof value.message === 'string' && value.message.trim()) {
+      return value.message;
+    }
+  }
+
+  return fallback;
+};
+
 const baseRates = {
   'Corporate Meeting': 18000,
   'Birthday Party': 22000,
@@ -108,7 +125,12 @@ const handleSubmit = async (e) => {
       return;
     }
 
-    setError(error.response?.data?.error || 'Something went wrong.');
+    setError(
+      toDisplayMessage(
+        error.response?.data?.error,
+        toDisplayMessage(error.response?.data?.message, 'Something went wrong.')
+      )
+    );
   }
 };
 

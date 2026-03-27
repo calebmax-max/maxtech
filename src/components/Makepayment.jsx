@@ -23,6 +23,31 @@ const normalizeCartItem = (item, quantity = 1) => ({
 
 const formatDate = (date) => date.toISOString().split('T')[0];
 
+const toDisplayMessage = (value, fallback) => {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+
+  if (value && typeof value === 'object') {
+    if (typeof value.errorMessage === 'string' && value.errorMessage.trim()) {
+      return value.errorMessage;
+    }
+    if (typeof value.message === 'string' && value.message.trim()) {
+      return value.message;
+    }
+
+    const pieces = Object.entries(value)
+      .filter(([, item]) => ['string', 'number', 'boolean'].includes(typeof item))
+      .map(([key, item]) => `${key}: ${item}`);
+
+    if (pieces.length > 0) {
+      return pieces.join(' | ');
+    }
+  }
+
+  return fallback;
+};
+
 const Makepayment = () => {
   const [allFoodCheckoutItems, setAllFoodCheckoutItems] = useState(() => getManagedFoodCheckoutItems());
   const location = useLocation();
@@ -227,15 +252,18 @@ const Makepayment = () => {
       }
 
       setSuccess(
-        response.data.message ||
+        toDisplayMessage(response.data.message, '') ||
           `STK push sent for ${paymentItem.title}. Check your phone and enter your M-Pesa PIN.`
       );
     } catch (paymentError) {
       setError(
-        paymentError.response?.data?.error ||
-          paymentError.response?.data?.message ||
-          paymentError.message ||
-          'Payment failed. Try again.'
+        toDisplayMessage(
+          paymentError.response?.data?.error,
+          toDisplayMessage(
+            paymentError.response?.data?.message,
+            paymentError.message || 'Payment failed. Try again.'
+          )
+        )
       );
     } finally {
       setLoading(false);

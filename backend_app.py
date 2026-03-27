@@ -99,6 +99,22 @@ def require_admin(view):
     return wrapped
 
 
+def require_roles(*allowed_roles):
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            user = session.get("user")
+            if not user or not user.get("is_admin"):
+                return jsonify({"message": "Unauthorized"}), 403
+            if allowed_roles and user.get("role") not in allowed_roles:
+                return jsonify({"message": "Forbidden"}), 403
+            return view(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
 def ensure_column(cursor, table_name, column_name, column_definition):
     cursor.execute(f"SHOW COLUMNS FROM {table_name} LIKE %s", (column_name,))
     if not cursor.fetchone():
@@ -247,6 +263,7 @@ def create_tables():
             user_id INT AUTO_INCREMENT PRIMARY KEY,
             org_id INT NULL,
             is_admin TINYINT(1) DEFAULT 0,
+            role VARCHAR(40) DEFAULT 'guest',
             username VARCHAR(120),
             email VARCHAR(160) UNIQUE,
             phone VARCHAR(30),
@@ -256,7 +273,7 @@ def create_tables():
     )
     ensure_column(cur, "users", "org_id", "INT NULL")
     ensure_column(cur, "users", "is_admin", "TINYINT(1) DEFAULT 0")
-
+    ensure_column(cur, "users", "role", "VARCHAR(40) DEFAULT 'guest'")
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS room_bookings (
@@ -325,9 +342,32 @@ def create_tables():
     ensure_column(cur, "organizations", "hero_title", "VARCHAR(255) NULL")
     ensure_column(cur, "organizations", "contact_phone", "VARCHAR(40) NULL")
     ensure_column(cur, "organizations", "location", "VARCHAR(160) NULL")
+    ensure_column(cur, "organizations", "subscription_plan", "VARCHAR(40) DEFAULT 'starter'")
+    ensure_column(cur, "organizations", "subscription_status", "VARCHAR(40) DEFAULT 'trial'")
+    ensure_column(cur, "organizations", "subscription_renewal_date", "DATE NULL")
+    ensure_column(cur, "organizations", "subscription_amount", "INT DEFAULT 0")
+    ensure_column(cur, "organizations", "trial_ends_at", "DATE NULL")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            org_id INT NULL,
+            user_id INT NULL,
+            action VARCHAR(120) NOT NULL,
+            entity_type VARCHAR(80) NULL,
+            entity_id VARCHAR(120) NULL,
+            details_json LONGTEXT NULL,
+            ip_address VARCHAR(80) NULL,
+            user_agent VARCHAR(255) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
 
     cur.execute("UPDATE users SET org_id=%s WHERE org_id IS NULL", (default_org_id,))
     cur.execute("UPDATE users SET is_admin=1 WHERE LOWER(email)=%s", (ADMIN_EMAIL,))
+    cur.execute("UPDATE users SET role='owner' WHERE LOWER(email)=%s", (ADMIN_EMAIL,))
     cur.execute("UPDATE room_bookings SET org_id=%s WHERE org_id IS NULL", (default_org_id,))
     cur.execute("UPDATE food_orders SET org_id=%s WHERE org_id IS NULL", (default_org_id,))
     cur.execute("UPDATE event_bookings SET org_id=%s WHERE org_id IS NULL", (default_org_id,))
@@ -375,7 +415,13 @@ def get_organization_by_id(org_id):
 
     try:
         cur.execute(
-            "SELECT org_id, name, slug, contact_email, created_at FROM organizations WHERE org_id=%s",
+            """
+            SELECT org_id, name, slug, contact_email, logo_url, primary_color, accent_color, hero_title,
+                   contact_phone, location, subscription_plan, subscription_status, subscription_renewal_date,
+                   subscription_amount, trial_ends_at, created_at
+            FROM organizations
+            WHERE org_id=%s
+            """,
             (org_id,),
         )
         return cur.fetchone()
@@ -408,7 +454,9 @@ def get_organization_by_slug(slug):
     try:
         cur.execute(
             """
-            SELECT org_id, name, slug, contact_email, logo_url, primary_color, accent_color, hero_title, contact_phone, location, created_at
+            SELECT org_id, name, slug, contact_email, logo_url, primary_color, accent_color, hero_title,
+                   contact_phone, location, subscription_plan, subscription_status, subscription_renewal_date,
+                   subscription_amount, trial_ends_at, created_at
             FROM organizations
             WHERE slug=%s
             """,
@@ -420,16 +468,39 @@ def get_organization_by_slug(slug):
         conn.close()
 
 
+def log_audit(action, entity_type=None, entity_id=None, details=None, org_id=None, user_id=None):
+    payload = json.dumps(details or {})
+    session_user = session.get("user") or {}
+    target_org_id = org_id if org_id is not None else session_user.get("org_id")
+    target_user_id = user_id if user_id is not None else session_user.get("user_id")
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            """
+            INSERT INTO audit_logs(org_id, user_id, action, entity_type, entity_id, details_json, ip_address, user_agent)
+            VALUES(%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                target_org_id,
+                target_user_id,
+                action,
+                entity_type,
+                str(entity_id) if entity_id is not None else None,
+                payload,
+                request.headers.get("X-Forwarded-For", request.remote_addr),
+                request.headers.get("User-Agent", "")[:255],
+            ),
+        )
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
 def resolve_request_organization():
-    workspace_slug = request.args.get("workspace", "").strip().lower()
-    if not workspace_slug:
-        workspace_slug = request.headers.get("X-Workspace-Slug", "").strip().lower()
-
-    if workspace_slug:
-        organization = get_organization_by_slug(workspace_slug)
-        if organization:
-            return organization
-
     user = session.get("user")
     if user and user.get("org_id"):
         organization = get_organization_by_id(user["org_id"])
@@ -509,13 +580,16 @@ def serialize_rows(rows):
 
 def build_safe_user(user):
     organization = get_organization_by_id(user.get("org_id")) if user.get("org_id") else None
+    role = user.get("role") or ("owner" if is_admin_email(user["email"]) else "guest")
+    is_admin = bool(user.get("is_admin")) or role in {"owner", "admin"} or is_admin_email(user["email"])
     return {
         "user_id": user["user_id"],
         "org_id": user.get("org_id"),
         "username": user.get("username"),
         "email": user["email"],
         "phone": user.get("phone"),
-        "is_admin": bool(user.get("is_admin")) or is_admin_email(user["email"]),
+        "role": role,
+        "is_admin": is_admin,
         "organization": {key: serialize_value(value) for key, value in organization.items()} if organization else None,
     }
 
@@ -525,7 +599,7 @@ def debug_version():
     return jsonify(
         {
             "app": "elitehotel-backend",
-            "version": "2026-03-27-saas-foundation-v1",
+            "version": "2026-03-27-single-hotel-cleanup-v1",
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
     )
@@ -575,9 +649,6 @@ def signup():
     password = data.get("password", "").strip()
     username = data.get("username", "").strip()
     phone = data.get("phone", "").strip()
-    workspace_name = data.get("workspace_name", "").strip()
-    workspace_slug_input = data.get("workspace_slug", "").strip()
-    create_workspace = bool(data.get("create_workspace"))
 
     if not email or not password or not username or not phone:
         return jsonify({"message": "All fields are required"}), 400
@@ -591,43 +662,26 @@ def signup():
             return jsonify({"message": "Email exists"}), 409
 
         org_id = get_default_org_id()
-        is_admin = 0
-
-        if create_workspace:
-            if not workspace_name:
-                return jsonify({"message": "Workspace name is required to create a tenant workspace"}), 400
-
-            workspace_slug = slugify(workspace_slug_input or workspace_name)
-            cur.execute("SELECT org_id FROM organizations WHERE slug=%s", (workspace_slug,))
-            if cur.fetchone():
-                return jsonify({"message": "Workspace slug already exists"}), 409
-
-            cur.execute(
-                """
-                INSERT INTO organizations(name, slug, contact_email)
-                VALUES(%s, %s, %s)
-                """,
-                (workspace_name, workspace_slug, email),
-            )
-            org_id = cur.lastrowid
-            is_admin = 1
-            cur.execute(
-                """
-                INSERT INTO workspace_catalogs(org_id, rooms_json, dining_json)
-                VALUES(%s, %s, %s)
-                """,
-                (org_id, json.dumps(DEFAULT_ROOMS), json.dumps(DEFAULT_DINING)),
-            )
+        is_admin = 1 if is_admin_email(email) else 0
+        role = "owner" if is_admin else "guest"
 
         cur.execute(
             """
-            INSERT INTO users(org_id,is_admin,username,email,phone,password)
-            VALUES(%s,%s,%s,%s,%s,%s)
+            INSERT INTO users(org_id,is_admin,role,username,email,phone,password)
+            VALUES(%s,%s,%s,%s,%s,%s,%s)
             """,
-            (org_id, is_admin, username, email, phone, generate_password_hash(password)),
+            (org_id, is_admin, role, username, email, phone, generate_password_hash(password)),
         )
-
+        user_id = cur.lastrowid
         conn.commit()
+        log_audit(
+            "user.signup",
+            entity_type="user",
+            entity_id=user_id,
+            details={"email": email},
+            org_id=org_id,
+            user_id=user_id,
+        )
         return jsonify({"message": "Signup successful"})
     finally:
         cur.close()
@@ -666,6 +720,10 @@ def signin():
             cur.execute("UPDATE users SET is_admin=1 WHERE user_id=%s", (user["user_id"],))
             conn.commit()
             user["is_admin"] = 1
+        if is_admin_email(user["email"]) and user.get("role") != "owner":
+            cur.execute("UPDATE users SET role='owner' WHERE user_id=%s", (user["user_id"],))
+            conn.commit()
+            user["role"] = "owner"
 
         if needs_upgrade:
             upgraded_password_hash = generate_password_hash(password)
@@ -679,6 +737,14 @@ def signin():
         safe_user = build_safe_user(user)
         session["user"] = safe_user
         session.permanent = True
+        log_audit(
+            "user.signin",
+            entity_type="user",
+            entity_id=user["user_id"],
+            details={"email": user["email"], "role": safe_user["role"]},
+            org_id=safe_user.get("org_id"),
+            user_id=user["user_id"],
+        )
 
         return jsonify({"message": "Login successful", "user": safe_user})
     finally:
@@ -688,6 +754,16 @@ def signin():
 
 @app.route("/api/signout", methods=["POST"])
 def signout():
+    current_user = session.get("user") or {}
+    if current_user.get("user_id"):
+        log_audit(
+            "user.signout",
+            entity_type="user",
+            entity_id=current_user.get("user_id"),
+            details={"email": current_user.get("email")},
+            org_id=current_user.get("org_id"),
+            user_id=current_user.get("user_id"),
+        )
     session.clear()
     return jsonify({"message": "Signed out"})
 
@@ -699,15 +775,6 @@ def admin_check():
 
 
 # ---------------- PUBLIC SaaS CATALOG ----------------
-@app.route("/api/catalog/workspace", methods=["GET"])
-def catalog_workspace():
-    organization = resolve_request_organization()
-    if not organization:
-        return jsonify({"message": "Workspace not found"}), 404
-
-    return jsonify({key: serialize_value(value) for key, value in organization.items()})
-
-
 @app.route("/api/catalog/rooms", methods=["GET"])
 def catalog_rooms():
     organization = resolve_request_organization()
@@ -739,66 +806,6 @@ def catalog_dining():
 
 
 # ---------------- ADMIN ----------------
-@app.route("/api/admin/workspace", methods=["GET", "PUT"])
-@require_admin
-def admin_workspace():
-    current_org_id = resolve_user_org_id(session.get("user", {}))
-    conn = get_connection()
-    cur = conn.cursor()
-
-    try:
-        if request.method == "GET":
-            organization = get_organization_by_id(current_org_id)
-            return jsonify({key: serialize_value(value) for key, value in organization.items()} if organization else {})
-
-        data = request.get_json() or {}
-        name = data.get("name", "").strip()
-        slug = slugify(data.get("slug", "").strip()) if data.get("slug") else None
-
-        if slug:
-            cur.execute("SELECT org_id FROM organizations WHERE slug=%s AND org_id<>%s", (slug, current_org_id))
-            if cur.fetchone():
-                return jsonify({"message": "Workspace slug already exists"}), 409
-
-        cur.execute(
-            """
-            UPDATE organizations
-            SET name=%s,
-                slug=COALESCE(%s, slug),
-                contact_email=%s,
-                logo_url=%s,
-                primary_color=%s,
-                accent_color=%s,
-                hero_title=%s,
-                contact_phone=%s,
-                location=%s
-            WHERE org_id=%s
-            """,
-            (
-                name or "Workspace",
-                slug,
-                data.get("contact_email"),
-                data.get("logo_url"),
-                data.get("primary_color"),
-                data.get("accent_color"),
-                data.get("hero_title"),
-                data.get("contact_phone"),
-                data.get("location"),
-                current_org_id,
-            ),
-        )
-        conn.commit()
-        organization = get_organization_by_id(current_org_id)
-        if session.get("user"):
-            session["user"]["organization"] = {
-                key: serialize_value(value) for key, value in organization.items()
-            }
-        return jsonify({key: serialize_value(value) for key, value in organization.items()} if organization else {})
-    finally:
-        cur.close()
-        conn.close()
-
-
 @app.route("/api/admin/catalog/rooms", methods=["GET", "PUT"])
 @require_admin
 def admin_catalog_rooms():
@@ -813,6 +820,7 @@ def admin_catalog_rooms():
         return jsonify({"message": "Rooms payload must be a list"}), 400
 
     catalog = save_workspace_catalog(current_org_id, rooms=rooms)
+    log_audit("catalog.rooms_updated", entity_type="workspace_catalog", entity_id=current_org_id, details={"count": len(rooms)}, org_id=current_org_id)
     return jsonify({"rooms": catalog["rooms"]})
 
 
@@ -830,7 +838,81 @@ def admin_catalog_dining():
         return jsonify({"message": "Catalog payload must be an object"}), 400
 
     catalog = save_workspace_catalog(current_org_id, dining=catalog_payload)
+    log_audit(
+        "catalog.dining_updated",
+        entity_type="workspace_catalog",
+        entity_id=current_org_id,
+        details={"featured_count": len(catalog_payload.get("featuredPlates", []))},
+        org_id=current_org_id,
+    )
     return jsonify({"catalog": catalog["dining"]})
+
+
+@app.route("/api/admin/users/<int:user_id>/role", methods=["PUT"])
+@require_roles("owner")
+def update_user_role(user_id):
+    data = request.get_json() or {}
+    next_role = (data.get("role") or "").strip().lower()
+    allowed_roles = {"owner", "admin", "staff", "viewer", "guest"}
+
+    if next_role not in allowed_roles:
+        return jsonify({"message": "Invalid role"}), 400
+
+    current_org_id = resolve_user_org_id(session.get("user", {}))
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            "SELECT user_id, org_id, email, role FROM users WHERE user_id=%s AND org_id=%s",
+            (user_id, current_org_id),
+        )
+        target_user = cur.fetchone()
+        if not target_user:
+            return jsonify({"message": "User not found"}), 404
+
+        cur.execute(
+            "UPDATE users SET role=%s, is_admin=%s WHERE user_id=%s",
+            (next_role, 1 if next_role in {"owner", "admin"} else 0, user_id),
+        )
+        conn.commit()
+        log_audit(
+            "user.role_updated",
+            entity_type="user",
+            entity_id=user_id,
+            details={"email": target_user["email"], "from": target_user.get("role"), "to": next_role},
+            org_id=current_org_id,
+            user_id=session.get("user", {}).get("user_id"),
+        )
+        return jsonify({"message": "User role updated"})
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/api/admin/audit-logs", methods=["GET"])
+@require_admin
+def get_audit_logs():
+    conn = get_connection()
+    cur = conn.cursor()
+    current_org_id = resolve_user_org_id(session.get("user", {}))
+
+    try:
+        cur.execute(
+            """
+            SELECT id, org_id, user_id, action, entity_type, entity_id, details_json, ip_address, user_agent, created_at
+            FROM audit_logs
+            WHERE org_id=%s
+            ORDER BY created_at DESC
+            LIMIT 50
+            """,
+            (current_org_id,),
+        )
+        logs = serialize_rows(cur.fetchall())
+        return jsonify({"logs": logs})
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.route("/api/admin/foods", methods=["GET"])
@@ -941,7 +1023,12 @@ def get_users():
 
     try:
         cur.execute(
-            "SELECT user_id, org_id, username, email, phone FROM users WHERE org_id=%s ORDER BY user_id DESC",
+            """
+            SELECT user_id, org_id, username, email, phone, role
+            FROM users
+            WHERE org_id=%s
+            ORDER BY user_id DESC
+            """,
             (current_org_id,),
         )
         users = cur.fetchall()
@@ -962,7 +1049,7 @@ def admin_overview():
     try:
         cur.execute(
             """
-            SELECT user_id, org_id, username, email, phone
+            SELECT user_id, org_id, username, email, phone, role
             FROM users
             WHERE org_id=%s
             ORDER BY user_id DESC
@@ -1004,6 +1091,18 @@ def admin_overview():
         )
         room_bookings = cur.fetchall()
 
+        cur.execute(
+            """
+            SELECT id, org_id, user_id, action, entity_type, entity_id, details_json, ip_address, user_agent, created_at
+            FROM audit_logs
+            WHERE org_id=%s
+            ORDER BY created_at DESC
+            LIMIT 20
+            """,
+            (current_org_id,),
+        )
+        audit_logs = cur.fetchall()
+
         organization = get_organization_by_id(current_org_id)
 
         return jsonify(
@@ -1013,6 +1112,7 @@ def admin_overview():
                 "food_orders": serialize_rows(food_orders),
                 "event_bookings": serialize_rows(event_bookings),
                 "room_bookings": serialize_rows(room_bookings),
+                "audit_logs": serialize_rows(audit_logs),
             }
         )
     finally:
@@ -1071,7 +1171,16 @@ def food_order():
                     items_json,
                 ),
             )
+            order_id = cur.lastrowid
             conn.commit()
+            log_audit(
+                "food_order.created",
+                entity_type="food_order",
+                entity_id=order_id,
+                details={"title": data.get("order_title"), "total_amount": data.get("total_amount")},
+                org_id=current_org_id,
+                user_id=session.get("user", {}).get("user_id"),
+            )
             return jsonify({"message": "Food order saved"})
         finally:
             cur.close()
@@ -1110,7 +1219,16 @@ def event_booking():
                     data.get("guests"),
                 ),
             )
+            booking_id = cur.lastrowid
             conn.commit()
+            log_audit(
+                "event_booking.created",
+                entity_type="event_booking",
+                entity_id=booking_id,
+                details={"event_type": data.get("event_type"), "event_date": data.get("event_date")},
+                org_id=current_org_id,
+                user_id=session.get("user", {}).get("user_id"),
+            )
             return jsonify({"message": "Event booking saved"})
         finally:
             cur.close()
@@ -1149,7 +1267,16 @@ def stay_booking():
                     data.get("payment_phone") or data.get("phone") or "0700000000",
                 ),
             )
+            booking_id = cur.lastrowid
             conn.commit()
+            log_audit(
+                "stay_booking.created",
+                entity_type="room_booking",
+                entity_id=booking_id,
+                details={"room_name": data.get("room_name"), "amount": data.get("amount")},
+                org_id=current_org_id,
+                user_id=session.get("user", {}).get("user_id"),
+            )
             return jsonify({"message": "Stay booking saved"})
         finally:
             cur.close()
@@ -1191,7 +1318,16 @@ def room_booking():
                     data.get("payment_phone"),
                 ),
             )
+            booking_id = cur.lastrowid
             conn.commit()
+            log_audit(
+                "room_booking.created",
+                entity_type="room_booking",
+                entity_id=booking_id,
+                details={"room_name": data.get("room_name"), "amount": data.get("amount")},
+                org_id=current_org_id,
+                user_id=session.get("user", {}).get("user_id"),
+            )
             return jsonify({"message": "Room booking saved"})
         finally:
             cur.close()
@@ -1202,11 +1338,37 @@ def room_booking():
 
 
 # ---------------- M-PESA (SANDBOX) ----------------
-CONSUMER_KEY = "2d4bHfA7WhY123XfrBAZt7KAjksXAfApUGS2AseRAlJkG9k2"
-CONSUMER_SECRET = "ShRXc0X80vbBMEeWIjoAu4iQ16hdAcvXppsGJq7dOkgzOUu9O4s5WjhYyJaRvaIk"
-SHORTCODE = "174379"
-PASSKEY = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"
-CALLBACK_URL = "https://calebtonny.alwaysdata.net/api/callback"
+MPESA_ENV = os.getenv("MPESA_ENV", "sandbox").strip().lower()
+CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "2d4bHfA7WhY123XfrBAZt7KAjksXAfApUGS2AseRAlJkG9k2").strip()
+CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "ShRXc0X80vbBMEeWIjoAu4iQ16hdAcvXppsGJq7dOkgzOUu9O4s5WjhYyJaRvaIk").strip()
+SHORTCODE = os.getenv("MPESA_SHORTCODE", "174379").strip()
+PASSKEY = os.getenv("MPESA_PASSKEY", "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919").strip()
+CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "https://calebtonny.alwaysdata.net/api/callback").strip()
+MPESA_ACCOUNT_REFERENCE = os.getenv("MPESA_ACCOUNT_REFERENCE", "EliteHotels").strip()
+
+
+def get_mpesa_base_url():
+    if MPESA_ENV == "production":
+        return "https://api.safaricom.co.ke"
+    return "https://sandbox.safaricom.co.ke"
+
+
+def get_mpesa_error_message(payload):
+    if isinstance(payload, str) and payload.strip():
+        return payload
+
+    if isinstance(payload, dict):
+        for key in ("errorMessage", "CustomerMessage", "ResponseDescription", "responseDescription"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+
+        error_code = payload.get("errorCode")
+        request_id = payload.get("requestId")
+        if error_code and request_id:
+            return f"M-Pesa error {error_code}: {payload.get('errorMessage', 'Request failed')} ({request_id})"
+
+    return "M-Pesa request failed. Confirm your credentials and try again."
 
 
 def format_phone(phone):
@@ -1223,18 +1385,21 @@ def format_phone(phone):
 
 
 def get_access_token():
-    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-    response = requests.get(url, auth=(CONSUMER_KEY, CONSUMER_SECRET))
+    if not CONSUMER_KEY or not CONSUMER_SECRET:
+        raise Exception("M-Pesa consumer key and consumer secret are required")
+
+    url = f"{get_mpesa_base_url()}/oauth/v1/generate?grant_type=client_credentials"
+    response = requests.get(url, auth=(CONSUMER_KEY, CONSUMER_SECRET), timeout=30)
 
     print("TOKEN STATUS:", response.status_code)
     print("TOKEN BODY:", response.text)
 
     if response.status_code != 200:
-        raise Exception("Failed to get access token")
+        raise Exception(f"Failed to get access token: {response.text}")
 
     token = response.json().get("access_token")
     if not token:
-        raise Exception("No access token received")
+        raise Exception(f"No access token received: {response.text}")
 
     return token
 
@@ -1266,7 +1431,7 @@ def mpesa():
             "PartyB": SHORTCODE,
             "PhoneNumber": phone,
             "CallBackURL": CALLBACK_URL,
-            "AccountReference": "SokoGarden",
+            "AccountReference": MPESA_ACCOUNT_REFERENCE,
             "TransactionDesc": "Payment",
         }
 
@@ -1276,9 +1441,10 @@ def mpesa():
         }
 
         response = requests.post(
-            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            f"{get_mpesa_base_url()}/mpesa/stkpush/v1/processrequest",
             json=payload,
             headers=headers,
+            timeout=30,
         )
 
         print("STK STATUS:", response.status_code)
@@ -1294,7 +1460,13 @@ def mpesa():
                 }
             )
 
-        return jsonify({"success": False, "error": response_data}), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": get_mpesa_error_message(response_data),
+                "details": response_data,
+            }
+        ), 400
     except Exception as error:
         import traceback
 

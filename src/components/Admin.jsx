@@ -13,7 +13,6 @@ import {
   clearAdminSession,
   getAdminSession,
   isAdminAuthenticated,
-  setActiveWorkspace,
 } from '../utils/adminSession';
 
 const defaultRoomForm = {
@@ -31,18 +30,6 @@ const defaultDishForm = {
   description: '',
 };
 
-const defaultWorkspaceForm = {
-  name: '',
-  slug: '',
-  contact_email: '',
-  logo_url: '',
-  primary_color: '',
-  accent_color: '',
-  hero_title: '',
-  contact_phone: '',
-  location: '',
-};
-
 const formatCurrency = (value) => {
   const numericValue = Number(String(value).replace(/[^0-9]/g, '')) || 0;
   return `KSh ${numericValue.toLocaleString()}`;
@@ -57,9 +44,8 @@ const Admin = () => {
   const [foodOrders, setFoodOrders] = useState([]);
   const [eventBookings, setEventBookings] = useState([]);
   const [roomBookings, setRoomBookings] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [backendVersion, setBackendVersion] = useState(null);
-  const [organization, setOrganization] = useState(getAdminSession()?.organization || null);
-  const [workspaceForm, setWorkspaceForm] = useState(defaultWorkspaceForm);
   const [roomForm, setRoomForm] = useState(defaultRoomForm);
   const [dishForm, setDishForm] = useState(defaultDishForm);
   const [status, setStatus] = useState('');
@@ -86,34 +72,18 @@ const Admin = () => {
         withCredentials: true,
       });
 
-      const nextOrganization = response.data.organization || null;
-      setOrganization(nextOrganization);
-      setWorkspaceForm(
-        nextOrganization
-          ? {
-              name: nextOrganization.name || '',
-              slug: nextOrganization.slug || '',
-              contact_email: nextOrganization.contact_email || '',
-              logo_url: nextOrganization.logo_url || '',
-              primary_color: nextOrganization.primary_color || '',
-              accent_color: nextOrganization.accent_color || '',
-              hero_title: nextOrganization.hero_title || '',
-              contact_phone: nextOrganization.contact_phone || '',
-              location: nextOrganization.location || '',
-            }
-          : defaultWorkspaceForm
-      );
       setUsers(response.data.users || []);
       setFoodOrders(response.data.food_orders || []);
       setEventBookings(response.data.event_bookings || []);
       setRoomBookings(response.data.room_bookings || []);
+      setAuditLogs(response.data.audit_logs || []);
       setRemoteDataError('');
     } catch (error) {
       setUsers([]);
       setFoodOrders([]);
       setEventBookings([]);
       setRoomBookings([]);
-      setOrganization(null);
+      setAuditLogs([]);
       if (error.response?.status === 404) {
         setRemoteDataError(
           'The live server does not have /api/admin/overview yet. Restart or redeploy the Flask backend, then refresh this page. Check /api/debug/version too.'
@@ -196,11 +166,6 @@ const Admin = () => {
     setDishForm((current) => ({ ...current, [name]: value }));
   };
 
-  const handleWorkspaceFormChange = (event) => {
-    const { name, value } = event.target;
-    setWorkspaceForm((current) => ({ ...current, [name]: value }));
-  };
-
   const handleAddRoom = async (event) => {
     event.preventDefault();
 
@@ -277,20 +242,17 @@ const Admin = () => {
     navigate('/signin', { replace: true });
   };
 
-  const handleWorkspaceSave = async (event) => {
-    event.preventDefault();
-
+  const handleRoleChange = async (userId, role) => {
     try {
-      const response = await axios.put(buildApiUrl('/api/admin/workspace'), workspaceForm, {
-        withCredentials: true,
-      });
-      setOrganization(response.data);
-      if (response.data?.slug) {
-        setActiveWorkspace(response.data.slug);
-      }
-      setStatus(`Workspace updated: ${response.data.name}`);
+      await axios.put(
+        buildApiUrl(`/api/admin/users/${userId}/role`),
+        { role },
+        { withCredentials: true }
+      );
+      setStatus(`Updated user role to ${role}`);
+      refreshData();
     } catch (error) {
-      setRemoteDataError(error.response?.data?.message || 'Unable to update workspace settings.');
+      setRemoteDataError(error.response?.data?.message || 'Unable to update user role.');
     }
   };
 
@@ -301,16 +263,14 @@ const Admin = () => {
           <p className="admin-shell__eyebrow">EliteHotels Admin Panel</p>
           <h1>Manage rooms, dining, users, bookings, and orders from one dashboard.</h1>
           <p>
-            This panel now shows live admin data for one workspace at a time, which is the
-            first step toward a full SaaS setup. It still lets you manage the local website
-            catalog while the backend now scopes business records to an organization.
+            This panel shows the hotel's live admin data and lets you manage the room and
+            dining catalog without the extra workspace layer.
           </p>
         </div>
 
         <div className="admin-shell__hero-meta">
           <span>{adminSession?.name || 'Admin'}</span>
           <span>{adminSession?.email || 'Signed in'}</span>
-          <span>{organization?.name || adminSession?.organization?.name || 'Default workspace'}</span>
           <span>{new Date().toLocaleDateString()}</span>
           <span>{backendVersion?.version || 'Backend version unavailable'}</span>
         </div>
@@ -326,10 +286,7 @@ const Admin = () => {
             <span className="admin-session-banner__label">Access Status</span>
             <strong>{adminSession ? 'Authenticated admin session' : 'Session unavailable'}</strong>
             <p>
-              Workspace:
-              {' '}
-              <strong>{organization?.name || adminSession?.organization?.name || 'Default workspace'}</strong>
-              . Tenant data, catalog, and admin visibility are now scoped per organization in the backend.
+              You are signed in as an administrator and can manage website content and records.
             </p>
           </div>
 
@@ -384,84 +341,6 @@ const Admin = () => {
         <div className="admin-shell__tools">
           <div className="admin-shell__tools-main">
             <div className="admin-board__grid">
-              <article className="admin-data-card">
-                <div className="admin-data-card__header">
-                  <p>Workspace Settings</p>
-                  <h3>Brand and identify this tenant workspace</h3>
-                </div>
-
-                <form className="admin-form-grid" onSubmit={handleWorkspaceSave}>
-                  <input
-                    className="admin-input"
-                    name="name"
-                    placeholder="Workspace name"
-                    value={workspaceForm.name}
-                    onChange={handleWorkspaceFormChange}
-                    required
-                  />
-                  <input
-                    className="admin-input"
-                    name="slug"
-                    placeholder="workspace-slug"
-                    value={workspaceForm.slug}
-                    onChange={handleWorkspaceFormChange}
-                    required
-                  />
-                  <input
-                    className="admin-input"
-                    name="contact_email"
-                    placeholder="Contact email"
-                    value={workspaceForm.contact_email}
-                    onChange={handleWorkspaceFormChange}
-                  />
-                  <input
-                    className="admin-input"
-                    name="contact_phone"
-                    placeholder="Contact phone"
-                    value={workspaceForm.contact_phone}
-                    onChange={handleWorkspaceFormChange}
-                  />
-                  <input
-                    className="admin-input"
-                    name="primary_color"
-                    placeholder="Primary color e.g. #0d6adf"
-                    value={workspaceForm.primary_color}
-                    onChange={handleWorkspaceFormChange}
-                  />
-                  <input
-                    className="admin-input"
-                    name="accent_color"
-                    placeholder="Accent color e.g. #f0bc47"
-                    value={workspaceForm.accent_color}
-                    onChange={handleWorkspaceFormChange}
-                  />
-                  <input
-                    className="admin-input admin-input--wide"
-                    name="logo_url"
-                    placeholder="Logo URL"
-                    value={workspaceForm.logo_url}
-                    onChange={handleWorkspaceFormChange}
-                  />
-                  <input
-                    className="admin-input admin-input--wide"
-                    name="hero_title"
-                    placeholder="Homepage hero title"
-                    value={workspaceForm.hero_title}
-                    onChange={handleWorkspaceFormChange}
-                  />
-                  <input
-                    className="admin-input admin-input--wide"
-                    name="location"
-                    placeholder="Location"
-                    value={workspaceForm.location}
-                    onChange={handleWorkspaceFormChange}
-                  />
-                  <button type="submit" className="admin-button">
-                    Save Workspace
-                  </button>
-                </form>
-              </article>
-
               <article className="admin-data-card">
                 <div className="admin-data-card__header">
                   <p>Room Catalog</p>
@@ -573,6 +452,7 @@ const Admin = () => {
                           <th>Name</th>
                           <th>Email</th>
                           <th>Phone</th>
+                          <th>Role</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -581,6 +461,20 @@ const Admin = () => {
                             <td>{user.username || 'Guest'}</td>
                             <td>{user.email}</td>
                             <td>{user.phone || '-'}</td>
+                            <td>
+                              <select
+                                className="admin-input"
+                                value={user.role || 'guest'}
+                                onChange={(event) => handleRoleChange(user.user_id, event.target.value)}
+                                disabled={adminSession?.role !== 'owner'}
+                              >
+                                <option value="owner">Owner</option>
+                                <option value="admin">Admin</option>
+                                <option value="staff">Staff</option>
+                                <option value="viewer">Viewer</option>
+                                <option value="guest">Guest</option>
+                              </select>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -771,6 +665,38 @@ const Admin = () => {
                             <td>{booking.room_name}</td>
                             <td>{booking.check_in} to {booking.check_out}</td>
                             <td>{booking.payment_phone || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </article>
+
+              <article className="admin-data-card">
+                <div className="admin-data-card__header">
+                  <p>Audit Trail</p>
+                  <h3>Recent admin activity</h3>
+                </div>
+
+                {auditLogs.length === 0 ? (
+                  <p className="admin-data-card__empty">No audit log entries yet.</p>
+                ) : (
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Action</th>
+                          <th>Entity</th>
+                          <th>When</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {auditLogs.slice(0, 10).map((log) => (
+                          <tr key={log.id}>
+                            <td>{log.action}</td>
+                            <td>{log.entity_type || '-'}</td>
+                            <td>{log.created_at}</td>
                           </tr>
                         ))}
                       </tbody>

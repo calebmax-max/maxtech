@@ -2,7 +2,7 @@ import axios from 'axios';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../utils/api';
-import { clearAdminSession, setActiveWorkspace, setAdminSession } from '../utils/adminSession';
+import { clearAdminSession, setAdminSession } from '../utils/adminSession';
 
 axios.defaults.withCredentials = true;
 
@@ -50,17 +50,12 @@ const Signin = () => {
       setLoading('');
       setSuccess(response.data.message);
 
-      if (signedInUser?.organization?.slug) {
-        setActiveWorkspace(signedInUser.organization.slug);
-      }
-
       if (signedInUser?.is_admin) {
         setAdminSession({
           email: signedInUser.email,
           name: signedInUser.username || 'Admin',
           isAdmin: true,
-          orgId: signedInUser.org_id || null,
-          organization: signedInUser.organization || null,
+          role: signedInUser.role || 'admin',
         });
 
         setTimeout(() => {

@@ -2,7 +2,6 @@ import axios from 'axios';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { buildApiUrl } from '../utils/api';
-import { setActiveWorkspace } from '../utils/adminSession';
 
 // ✅ Ensure cookies/session work across domains
 axios.defaults.withCredentials = true;
@@ -12,9 +11,6 @@ const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  const [workspaceName, setWorkspaceName] = useState("");
-  const [workspaceSlug, setWorkspaceSlug] = useState("");
-  const [createWorkspace, setCreateWorkspace] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState("");
@@ -29,7 +25,6 @@ const Signup = () => {
     setSuccess("");
 
     const normalizedEmail = email.trim().toLowerCase();
-    const normalizedWorkspaceSlug = workspaceSlug.trim().toLowerCase();
 
     // ✅ Password validation
     const passwordIsStrong =
@@ -52,9 +47,6 @@ const Signup = () => {
           email: normalizedEmail,
           password,
           phone: phone.trim(),
-          create_workspace: createWorkspace,
-          workspace_name: createWorkspace ? workspaceName.trim() : '',
-          workspace_slug: createWorkspace ? normalizedWorkspaceSlug : '',
         },
         {
           headers: {
@@ -71,13 +63,6 @@ const Signup = () => {
       setEmail("");
       setPassword("");
       setPhone("");
-      setWorkspaceName("");
-      setWorkspaceSlug("");
-      setCreateWorkspace(false);
-
-      if (createWorkspace && normalizedWorkspaceSlug) {
-        setActiveWorkspace(normalizedWorkspaceSlug);
-      }
 
       // Auto clear success message
       setTimeout(() => {
@@ -175,44 +160,6 @@ const Signup = () => {
                 required
               />
             </label>
-
-            <label className="auth-field auth-field--toggle">
-              <span>Create Workspace</span>
-              <div className="auth-checkbox">
-                <input
-                  type="checkbox"
-                  checked={createWorkspace}
-                  onChange={(e) => setCreateWorkspace(e.target.checked)}
-                />
-                <small>Create a separate hotel workspace and become its admin.</small>
-              </div>
-            </label>
-
-            {createWorkspace && (
-              <>
-                <label className="auth-field">
-                  <span>Workspace Name</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. Bluewave Suites"
-                    value={workspaceName}
-                    onChange={(e) => setWorkspaceName(e.target.value)}
-                    required={createWorkspace}
-                  />
-                </label>
-
-                <label className="auth-field">
-                  <span>Workspace Slug</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. bluewave-suites"
-                    value={workspaceSlug}
-                    onChange={(e) => setWorkspaceSlug(e.target.value)}
-                    required={createWorkspace}
-                  />
-                </label>
-              </>
-            )}
 
             <button type="submit" className="auth-submit">
               Sign Up
