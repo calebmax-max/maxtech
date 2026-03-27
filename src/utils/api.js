@@ -1,6 +1,10 @@
 // src/utils/api.js
 
-const envApiBase = (process.env.REACT_APP_API_BASE_URL || '').trim();
+const envApiBase = (
+  process.env.REACT_APP_API_BASE_URL ||
+  process.env.REACT_APP_API_URL ||
+  ''
+).trim();
 const normalizedEnvApiBase = envApiBase.replace(/\/+$/, '');
 
 const isLocalHostname = (hostname = '') =>
