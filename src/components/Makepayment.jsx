@@ -8,6 +8,7 @@ import { saveRoomBooking } from '../utils/roomBookingStorage';
 import Loader from './Loader';
 
 const FOOD_PAYMENT_TYPES = new Set(['Food Order', 'Featured Dish']);
+const RESPONSE_DISPLAY_MS = 5000;
 const isFoodPaymentItem = (item) => FOOD_PAYMENT_TYPES.has(item?.type);
 
 const normalizeCartItem = (item, quantity = 1) => ({
@@ -67,6 +68,53 @@ const Makepayment = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [visiblePaymentNotice, setVisiblePaymentNotice] = useState(paymentNotice || '');
+
+  useEffect(() => {
+    setVisiblePaymentNotice(paymentNotice || '');
+  }, [paymentNotice]);
+
+  useEffect(() => {
+    if (!visiblePaymentNotice) {
+      return undefined;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setVisiblePaymentNotice('');
+    }, RESPONSE_DISPLAY_MS);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [visiblePaymentNotice]);
+
+  useEffect(() => {
+    if (!success) {
+      return undefined;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setSuccess('');
+    }, RESPONSE_DISPLAY_MS);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [success]);
+
+  useEffect(() => {
+    if (!error) {
+      return undefined;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setError('');
+    }, RESPONSE_DISPLAY_MS);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [error]);
 
   useEffect(() => {
     let active = true;
@@ -407,7 +455,7 @@ const Makepayment = () => {
             <p>Enter your phone number and you will receive a message to complete the payment.</p>
           </div>
 
-          {paymentNotice && <div className="payment-message payment-message--success">{paymentNotice}</div>}
+          {visiblePaymentNotice && <div className="payment-message payment-message--success">{visiblePaymentNotice}</div>}
           {loading && <Loader />}
           {success && <div className="payment-message payment-message--success">{success}</div>}
           {error && <div className="payment-message payment-message--error">{error}</div>}

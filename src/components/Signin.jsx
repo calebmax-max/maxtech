@@ -6,6 +6,8 @@ import { clearAdminSession, setAdminSession } from '../utils/adminSession';
 
 axios.defaults.withCredentials = true;
 
+const RESPONSE_DISPLAY_MS = 5000;
+
 const Signin = () => {
   const navigate = useNavigate();
 
@@ -60,13 +62,13 @@ const Signin = () => {
 
         setTimeout(() => {
           navigate('/admin', { replace: true });
-        }, 500);
+        }, RESPONSE_DISPLAY_MS);
         return;
       }
 
       setTimeout(() => {
         navigate('/');
-      }, 700);
+      }, RESPONSE_DISPLAY_MS);
     } catch (requestError) {
       setLoading('');
       setError(requestError.response?.data?.message || 'Invalid email or password');
