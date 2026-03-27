@@ -8,6 +8,7 @@ import pymysql
 import requests
 from flask import Flask, jsonify, request, session
 from flask_cors import CORS
+from requests.auth import HTTPBasicAuth
 from werkzeug.security import check_password_hash, generate_password_hash
 
 # ---------------- APP SETUP ----------------
@@ -1131,12 +1132,13 @@ def room_booking():
 
 # ---------------- M-PESA (SANDBOX) ----------------
 MPESA_ENV = os.getenv("MPESA_ENV", "sandbox").strip().lower()
-CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "2d4bHfA7WhY123XfrBAZt7KAjksXAfApUGS2AseRAlJkG9k2").strip()
-CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "ShRXc0X80vbBMEeWIjoAu4iQ16hdAcvXppsGJq7dOkgzOUu9O4s5WjhYyJaRvaIk").strip()
+CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "GTWADFxIpUfDoNikNGqq1C3023evM6UH").strip()
+CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "amFbAoUByPV2rM5A").strip()
 SHORTCODE = os.getenv("MPESA_SHORTCODE", "174379").strip()
 PASSKEY = os.getenv("MPESA_PASSKEY", "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919").strip()
-CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "https://calebtonny.alwaysdata.net/api/callback").strip()
-MPESA_ACCOUNT_REFERENCE = os.getenv("MPESA_ACCOUNT_REFERENCE", "EliteHotels").strip()
+CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "https://modcom.co.ke/api/confirmation.php").strip()
+MPESA_ACCOUNT_REFERENCE = os.getenv("MPESA_ACCOUNT_REFERENCE", "account").strip()
+MPESA_TRANSACTION_DESC = os.getenv("MPESA_TRANSACTION_DESC", "account").strip()
 
 
 def get_mpesa_base_url():
@@ -1181,7 +1183,7 @@ def get_access_token():
         raise Exception("M-Pesa consumer key and consumer secret are required")
 
     url = f"{get_mpesa_base_url()}/oauth/v1/generate?grant_type=client_credentials"
-    response = requests.get(url, auth=(CONSUMER_KEY, CONSUMER_SECRET), timeout=30)
+    response = requests.get(url, auth=HTTPBasicAuth(CONSUMER_KEY, CONSUMER_SECRET), timeout=30)
 
     print("TOKEN STATUS:", response.status_code)
     print("TOKEN BODY:", response.text)
@@ -1202,16 +1204,23 @@ def mpesa():
         return jsonify({"status": "ok"}), 200
 
     try:
-        data = request.get_json() or {}
-        phone = format_phone(data.get("phone"))
-        amount = int(data.get("amount"))
+        data = request.get_json(silent=True) or {}
+        amount = request.form.get("amount") or data.get("amount")
+        phone = request.form.get("phone") or data.get("phone")
 
-        if phone != "254708374149":
-            return jsonify({"error": "Use sandbox number 254708374149 for testing"}), 400
+        if not amount or not phone:
+            return jsonify({"error": "Amount and phone are required"}), 400
 
-        token = get_access_token()
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        password = base64.b64encode((SHORTCODE + PASSKEY + timestamp).encode()).decode()
+        phone = format_phone(phone)
+        amount = int(amount)
+
+        api_url = f"{get_mpesa_base_url()}/oauth/v1/generate?grant_type=client_credentials"
+        token_response = requests.get(api_url, auth=HTTPBasicAuth(CONSUMER_KEY, CONSUMER_SECRET), timeout=30)
+        token_data = token_response.json()
+        access_token = f"Bearer {token_data['access_token']}"
+
+        timestamp = datetime.today().strftime("%Y%m%d%H%M%S")
+        password = base64.b64encode(f"{SHORTCODE}{PASSKEY}{timestamp}".encode()).decode("utf-8")
 
         payload = {
             "BusinessShortCode": SHORTCODE,
@@ -1224,11 +1233,11 @@ def mpesa():
             "PhoneNumber": phone,
             "CallBackURL": CALLBACK_URL,
             "AccountReference": MPESA_ACCOUNT_REFERENCE,
-            "TransactionDesc": "Payment",
+            "TransactionDesc": MPESA_TRANSACTION_DESC,
         }
 
         headers = {
-            "Authorization": f"Bearer {token}",
+            "Authorization": access_token,
             "Content-Type": "application/json",
         }
 
@@ -1247,7 +1256,7 @@ def mpesa():
             return jsonify(
                 {
                     "success": True,
-                    "message": "STK push sent",
+                    "message": "Please Complete Payment in Your Phone and we will deliver in minutes",
                     "data": response_data,
                 }
             )
