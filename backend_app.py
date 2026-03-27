@@ -386,6 +386,30 @@ def get_food_items_column():
         conn.close()
 
 
+def prune_expired_records(cur):
+    today = date.today().isoformat()
+
+    cur.execute("DELETE FROM food_orders WHERE preferred_date IS NOT NULL AND preferred_date < %s", (today,))
+    cur.execute("DELETE FROM event_bookings WHERE event_date IS NOT NULL AND event_date < %s", (today,))
+    cur.execute("DELETE FROM room_bookings WHERE check_out IS NOT NULL AND check_out < %s", (today,))
+
+
+def event_date_is_booked(cur, event_date):
+    if not event_date:
+        return False
+
+    cur.execute(
+        """
+        SELECT id
+        FROM event_bookings
+        WHERE event_date = %s
+        LIMIT 1
+        """,
+        (event_date,),
+    )
+    return cur.fetchone() is not None
+
+
 def log_audit(action, entity_type=None, entity_id=None, details=None, user_id=None):
     payload = json.dumps(details or {})
     session_user = session.get("user") or {}
@@ -857,6 +881,9 @@ def get_bookings():
     cur = conn.cursor()
 
     try:
+        prune_expired_records(cur)
+        conn.commit()
+
         cur.execute("SELECT * FROM room_bookings")
         rooms = cur.fetchall()
 
@@ -903,6 +930,9 @@ def admin_overview():
     food_items_column = get_food_items_column()
 
     try:
+        prune_expired_records(cur)
+        conn.commit()
+
         cur.execute(
             """
             SELECT user_id, username, email, phone, role
@@ -997,6 +1027,7 @@ def food_order():
         cur = conn.cursor()
 
         try:
+            prune_expired_records(cur)
             cur.execute(
                 f"""
                 INSERT INTO food_orders
@@ -1042,6 +1073,12 @@ def event_booking():
         cur = conn.cursor()
 
         try:
+            prune_expired_records(cur)
+
+            if event_date_is_booked(cur, data.get("event_date")):
+                conn.rollback()
+                return jsonify({"message": "The selected event date is booked."}), 409
+
             cur.execute(
                 """
                 INSERT INTO event_bookings
@@ -1087,6 +1124,7 @@ def stay_booking():
         cur = conn.cursor()
 
         try:
+            prune_expired_records(cur)
             cur.execute(
                 """
                 INSERT INTO room_bookings
@@ -1135,6 +1173,7 @@ def room_booking():
         cur = conn.cursor()
 
         try:
+            prune_expired_records(cur)
             cur.execute(
                 """
                 INSERT INTO room_bookings

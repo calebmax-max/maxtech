@@ -5,6 +5,8 @@ import Loader from './Loader';
 //submitEventBooking → API function that sends event booking details to your backend.
 import { submitEventBooking } from '../utils/eventBookingApi';
 
+const formatDate = (date) => date.toISOString().split('T')[0];
+
 const toDisplayMessage = (value, fallback) => {
   if (typeof value === 'string' && value.trim()) {
     return value;
@@ -36,6 +38,7 @@ const baseRates = {
 //Also tracks UI state: loading, success message, error message.
 const EventInquiry = () => {
   const navigate = useNavigate();
+  const today = formatDate(new Date());
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -87,6 +90,13 @@ const handleSubmit = async (e) => {
   setError('');
 
   const guestCount = Number(guests) || 0;
+
+  if (!eventDate) {
+    setLoading(false);
+    setError('Select an event date before sending your request.');
+    return;
+  }
+
   const checkoutItem = buildCheckoutItem(guestCount);
 
   const payload = {
@@ -190,7 +200,13 @@ const handleSubmit = async (e) => {
 
             <label className="event-field">
               <span>Event Date</span>
-              <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} required />
+              <input
+                type="date"
+                min={today}
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
+                required
+              />
             </label>
 
             <label className="event-field">
