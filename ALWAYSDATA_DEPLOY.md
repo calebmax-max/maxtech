@@ -29,7 +29,7 @@ Recommended environment variables on alwaysdata:
 
 ```txt
 FLASK_SECRET_KEY=change-this-to-a-real-secret
-CLIENT_ORIGIN=https://calebtonny.alwaysdata.net,http://localhost:3000,http://127.0.0.1:3000
+CLIENT_ORIGIN=https://calebtonny.alwaysdata.net,https://elitehotel-4pgo.onrender.com,http://localhost:3000,http://127.0.0.1:3000
 SESSION_COOKIE_SAMESITE=Lax
 SESSION_COOKIE_SECURE=true
 WEB_ROOT_DIR=/full/path/to/project/www

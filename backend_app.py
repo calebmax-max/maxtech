@@ -27,7 +27,7 @@ client_origins = [
     origin.strip()
     for origin in os.getenv(
         "CLIENT_ORIGIN",
-        "http://localhost:3000,http://127.0.0.1:3000,https://calebtonny.alwaysdata.net",
+        "http://localhost:3000,http://127.0.0.1:3000,https://calebtonny.alwaysdata.net,https://elitehotel-4pgo.onrender.com",
     ).split(",")
     if origin.strip()
 ]
@@ -40,8 +40,6 @@ def handle_options(response):
     origin = request.headers.get("Origin", "")
     if origin in client_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
-    elif client_origins:
-        response.headers["Access-Control-Allow-Origin"] = client_origins[0]
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
