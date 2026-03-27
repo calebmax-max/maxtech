@@ -4,5 +4,4 @@ application = app
 
 
 if __name__ == "__main__":
-    port = int(__import__("os").getenv("PORT", "5000"))
-    application.run(host="0.0.0.0", port=port)
+    application.run(host="127.0.0.1", port=5000)
