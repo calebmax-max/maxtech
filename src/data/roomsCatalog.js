@@ -1,5 +1,35 @@
 export const defaultRoomOptions = [
   {
+    name: 'Solo Traveler Room',
+    price: 'KSh 8,900',
+    image:
+      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
+    description:
+      'A smart single-occupancy room with a calm layout, efficient workspace, and everything needed for one guest.',
+    overview:
+      'Built for solo stays, this room keeps things comfortable and practical with a cozy sleeping area, fast connectivity, and an easy work-rest rhythm.',
+    guests: '1 Guest',
+    size: '24 m2',
+    bed: '1 Single Bed',
+    idealFor: 'Solo travelers and short business stays',
+    features: ['Smart TV', 'Free Wi-Fi', 'Work Desk', 'Air Conditioning'],
+  },
+  {
+    name: 'Business Solo Room',
+    price: 'KSh 9,600',
+    image:
+      'https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?auto=format&fit=crop&w=1200&q=80',
+    description:
+      'A polished one-guest room with quiet surroundings, strong lighting, and a focused business-friendly setup.',
+    overview:
+      'This room is ideal for guests traveling alone who want a little more comfort, a dependable desk setup, and a peaceful overnight stay.',
+    guests: '1 Guest',
+    size: '26 m2',
+    bed: '1 Double Bed',
+    idealFor: 'Single business trips and overnight stays',
+    features: ['Smart TV', 'Wi-Fi', 'Coffee Station', 'Daily Housekeeping'],
+  },
+  {
     name: 'Deluxe King Room',
     price: 'KSh 12,500',
     image:

@@ -19,6 +19,8 @@ const defaultRoomForm = {
   name: '',
   price: '',
   image: '',
+  imageFile: '',
+  imageFileName: '',
   description: '',
 };
 
@@ -26,14 +28,35 @@ const defaultDishForm = {
   title: '',
   price: '',
   image: '',
+  imageFile: '',
+  imageFileName: '',
   tag: '',
   description: '',
+};
+
+const defaultMenuItemForm = {
+  name: '',
+  price: '',
+  categoryTitle: '',
+  categoryDescription: '',
+  description: '',
+  image: '',
+  imageFile: '',
+  imageFileName: '',
 };
 
 const formatCurrency = (value) => {
   const numericValue = Number(String(value).replace(/[^0-9]/g, '')) || 0;
   return `KSh ${numericValue.toLocaleString()}`;
 };
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(new Error('Unable to read selected image file.'));
+    reader.readAsDataURL(file);
+  });
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -48,6 +71,7 @@ const Admin = () => {
   const [backendVersion, setBackendVersion] = useState(null);
   const [roomForm, setRoomForm] = useState(defaultRoomForm);
   const [dishForm, setDishForm] = useState(defaultDishForm);
+  const [menuItemForm, setMenuItemForm] = useState(defaultMenuItemForm);
   const [status, setStatus] = useState('');
   const [remoteDataError, setRemoteDataError] = useState('');
   const [adminSession, setAdminSessionState] = useState(getAdminSession());
@@ -166,6 +190,77 @@ const Admin = () => {
     setDishForm((current) => ({ ...current, [name]: value }));
   };
 
+  const handleMenuItemFormChange = (event) => {
+    const { name, value } = event.target;
+    setMenuItemForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleRoomImageFileChange = async (event) => {
+    const selectedFile = event.target.files?.[0];
+
+    if (!selectedFile) {
+      setRoomForm((current) => ({ ...current, imageFile: '', imageFileName: '' }));
+      return;
+    }
+
+    try {
+      const imageFile = await readFileAsDataUrl(selectedFile);
+      setRoomForm((current) => ({
+        ...current,
+        imageFile,
+        imageFileName: selectedFile.name,
+      }));
+      setStatus('');
+      setRemoteDataError('');
+    } catch (error) {
+      setRemoteDataError(error.message || 'Unable to read the selected room image.');
+    }
+  };
+
+  const handleDishImageFileChange = async (event) => {
+    const selectedFile = event.target.files?.[0];
+
+    if (!selectedFile) {
+      setDishForm((current) => ({ ...current, imageFile: '', imageFileName: '' }));
+      return;
+    }
+
+    try {
+      const imageFile = await readFileAsDataUrl(selectedFile);
+      setDishForm((current) => ({
+        ...current,
+        imageFile,
+        imageFileName: selectedFile.name,
+      }));
+      setStatus('');
+      setRemoteDataError('');
+    } catch (error) {
+      setRemoteDataError(error.message || 'Unable to read the selected dish image.');
+    }
+  };
+
+  const handleMenuItemImageFileChange = async (event) => {
+    const selectedFile = event.target.files?.[0];
+
+    if (!selectedFile) {
+      setMenuItemForm((current) => ({ ...current, imageFile: '', imageFileName: '' }));
+      return;
+    }
+
+    try {
+      const imageFile = await readFileAsDataUrl(selectedFile);
+      setMenuItemForm((current) => ({
+        ...current,
+        imageFile,
+        imageFileName: selectedFile.name,
+      }));
+      setStatus('');
+      setRemoteDataError('');
+    } catch (error) {
+      setRemoteDataError(error.message || 'Unable to read the selected menu item image.');
+    }
+  };
+
   const handleAddRoom = async (event) => {
     event.preventDefault();
 
@@ -173,6 +268,7 @@ const Admin = () => {
       name: roomForm.name.trim(),
       price: formatCurrency(roomForm.price),
       image:
+        roomForm.imageFile ||
         roomForm.image.trim() ||
         'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
       description: roomForm.description.trim(),
@@ -207,6 +303,7 @@ const Admin = () => {
       title: dishForm.title.trim(),
       price: formatCurrency(dishForm.price),
       image:
+        dishForm.imageFile ||
         dishForm.image.trim() ||
         'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=1200&q=80',
       tag: dishForm.tag.trim() || 'Chef Pick',
@@ -235,6 +332,76 @@ const Admin = () => {
     await saveManagedDiningCatalog(updatedCatalog);
     setCatalog(updatedCatalog);
     setStatus(`Removed featured dish: ${title}`);
+  };
+
+  const handleAddMenuItem = async (event) => {
+    event.preventDefault();
+
+    const categoryTitle = menuItemForm.categoryTitle.trim();
+    const categoryDescription =
+      menuItemForm.categoryDescription.trim() ||
+      'Freshly prepared selections from the EliteHotels kitchen.';
+
+    const newMenuItem = {
+      name: menuItemForm.name.trim(),
+      price: formatCurrency(menuItemForm.price),
+      image:
+        menuItemForm.imageFile ||
+        menuItemForm.image.trim() ||
+        'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80',
+      description:
+        menuItemForm.description.trim() ||
+        `${categoryTitle} selection prepared for the EliteHotels dining menu.`,
+    };
+
+    const existingCategoryIndex = catalog.categories.findIndex(
+      (category) => category.title.trim().toLowerCase() === categoryTitle.toLowerCase()
+    );
+
+    const nextCategories =
+      existingCategoryIndex >= 0
+        ? catalog.categories.map((category, index) =>
+            index === existingCategoryIndex
+              ? {
+                  ...category,
+                  description: menuItemForm.categoryDescription.trim() || category.description,
+                  items: [
+                    {
+                      name: newMenuItem.name,
+                      price: newMenuItem.price,
+                      image: newMenuItem.image,
+                      description: newMenuItem.description,
+                    },
+                    ...category.items,
+                  ],
+                }
+              : category
+          )
+        : [
+            {
+              title: categoryTitle,
+              description: categoryDescription,
+              items: [
+                {
+                  name: newMenuItem.name,
+                  price: newMenuItem.price,
+                  image: newMenuItem.image,
+                  description: newMenuItem.description,
+                },
+              ],
+            },
+            ...catalog.categories,
+          ];
+
+    const updatedCatalog = {
+      ...catalog,
+      categories: nextCategories,
+    };
+
+    await saveManagedDiningCatalog(updatedCatalog);
+    setCatalog(updatedCatalog);
+    setMenuItemForm(defaultMenuItemForm);
+    setStatus(`Added menu item: ${newMenuItem.name} in ${categoryTitle}`);
   };
 
   const handleLogout = () => {
@@ -371,6 +538,11 @@ const Admin = () => {
                     value={roomForm.image}
                     onChange={handleRoomFormChange}
                   />
+                  <label className="admin-input admin-input--wide">
+                    <span>Select local image</span>
+                    <input type="file" accept="image/*" onChange={handleRoomImageFileChange} />
+                    {roomForm.imageFileName && <small>Selected file: {roomForm.imageFileName}</small>}
+                  </label>
                   <textarea
                     className="admin-input admin-input--wide admin-textarea"
                     name="description"
@@ -422,6 +594,11 @@ const Admin = () => {
                     value={dishForm.image}
                     onChange={handleDishFormChange}
                   />
+                  <label className="admin-input admin-input--wide">
+                    <span>Select local image</span>
+                    <input type="file" accept="image/*" onChange={handleDishImageFileChange} />
+                    {dishForm.imageFileName && <small>Selected file: {dishForm.imageFileName}</small>}
+                  </label>
                   <textarea
                     className="admin-input admin-input--wide admin-textarea"
                     name="description"
@@ -432,6 +609,70 @@ const Admin = () => {
                   />
                   <button type="submit" className="admin-button">
                     Add Featured Dish
+                  </button>
+                </form>
+              </article>
+
+              <article className="admin-data-card">
+                <div className="admin-data-card__header">
+                  <p>Food Menu</p>
+                  <h3>Add a dish to the food menu with its category and details</h3>
+                </div>
+
+                <form className="admin-form-grid" onSubmit={handleAddMenuItem}>
+                  <input
+                    className="admin-input"
+                    name="name"
+                    placeholder="Dish name"
+                    value={menuItemForm.name}
+                    onChange={handleMenuItemFormChange}
+                    required
+                  />
+                  <input
+                    className="admin-input"
+                    name="price"
+                    placeholder="Price e.g. 1850"
+                    value={menuItemForm.price}
+                    onChange={handleMenuItemFormChange}
+                    required
+                  />
+                  <input
+                    className="admin-input"
+                    name="categoryTitle"
+                    placeholder="Category e.g. Main Courses"
+                    value={menuItemForm.categoryTitle}
+                    onChange={handleMenuItemFormChange}
+                    required
+                  />
+                  <input
+                    className="admin-input admin-input--wide"
+                    name="categoryDescription"
+                    placeholder="Category description"
+                    value={menuItemForm.categoryDescription}
+                    onChange={handleMenuItemFormChange}
+                  />
+                  <input
+                    className="admin-input admin-input--wide"
+                    name="image"
+                    placeholder="Image URL"
+                    value={menuItemForm.image}
+                    onChange={handleMenuItemFormChange}
+                  />
+                  <label className="admin-input admin-input--wide">
+                    <span>Select local image</span>
+                    <input type="file" accept="image/*" onChange={handleMenuItemImageFileChange} />
+                    {menuItemForm.imageFileName && <small>Selected file: {menuItemForm.imageFileName}</small>}
+                  </label>
+                  <textarea
+                    className="admin-input admin-input--wide admin-textarea"
+                    name="description"
+                    placeholder="Dish description"
+                    value={menuItemForm.description}
+                    onChange={handleMenuItemFormChange}
+                    required
+                  />
+                  <button type="submit" className="admin-button">
+                    Add Menu Item
                   </button>
                 </form>
               </article>
@@ -627,6 +868,38 @@ const Admin = () => {
                                 Delete
                               </button>
                             </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </article>
+
+              <article className="admin-data-card">
+                <div className="admin-data-card__header">
+                  <p>Food Menu Categories</p>
+                  <h3>Current menu sections and dish counts</h3>
+                </div>
+
+                {catalog.categories.length === 0 ? (
+                  <p className="admin-data-card__empty">No menu categories available yet.</p>
+                ) : (
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          <th>Description</th>
+                          <th>Items</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {catalog.categories.map((category) => (
+                          <tr key={category.title}>
+                            <td>{category.title}</td>
+                            <td>{category.description}</td>
+                            <td>{category.items.length}</td>
                           </tr>
                         ))}
                       </tbody>

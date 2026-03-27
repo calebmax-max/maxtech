@@ -198,6 +198,8 @@ const Getproducts = () => {
                 checkIn: quickCheckIn,
                 checkOut: quickCheckOut,
                 guests: quickGuests,
+                exactGuestMatch: true,
+                quickSearch: true,
               },
             })}
           >

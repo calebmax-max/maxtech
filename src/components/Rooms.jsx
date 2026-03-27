@@ -25,7 +25,6 @@ const getGuestCount = (guestLabel) => {
   return parsed;
 };
 
-const getRoomAmount = (priceLabel) => Number(String(priceLabel).replace(/[^0-9]/g, ''));
 const formatDate = (date) => date.toISOString().split('T')[0];
 
 const getTomorrow = (dateString) => {
@@ -42,6 +41,8 @@ const Rooms = () => {
   const defaultCheckIn = searchState.checkIn || formatDate(new Date());
   const defaultCheckOut = searchState.checkOut || getTomorrow(defaultCheckIn);
   const requestedGuests = Number(searchState.guests || 0);
+  const exactGuestMatch = Boolean(searchState.exactGuestMatch);
+  const fromQuickSearch = Boolean(searchState.quickSearch);
   const [storedBookings, setStoredBookings] = useState([]);
   const [managedRooms, setManagedRooms] = useState(roomOptions);
 
@@ -65,7 +66,14 @@ const Rooms = () => {
   }, []);
 
   const orderedRooms = useMemo(() => {
-    const roomsWithStatus = managedRooms.map((room) => {
+    const resolvedRooms = [
+      ...managedRooms,
+      ...defaultRoomOptions.filter(
+        (defaultRoom) => !managedRooms.some((room) => room.name === defaultRoom.name)
+      ),
+    ];
+
+    const roomsWithStatus = resolvedRooms.map((room) => {
       const roomBookings = storedBookings.filter((booking) => booking.roomName === room.name);
       const isUnavailableForSearch =
         Boolean(searchState.checkIn && searchState.checkOut) &&
@@ -79,12 +87,17 @@ const Rooms = () => {
       };
     });
 
+    const matchesGuestSearch = (room) => {
+      const guestCount = getGuestCount(room.guests);
+      return exactGuestMatch ? guestCount === requestedGuests : guestCount >= requestedGuests;
+    };
+
     if (!requestedGuests) {
       return roomsWithStatus.sort((first, second) => Number(first.isBooked) - Number(second.isBooked));
     }
 
     const matchingRooms = roomsWithStatus
-      .filter((room) => getGuestCount(room.guests) >= requestedGuests)
+      .filter(matchesGuestSearch)
       .sort((first, second) => {
         if (first.isUnavailableForSearch !== second.isUnavailableForSearch) {
           return Number(first.isUnavailableForSearch) - Number(second.isUnavailableForSearch);
@@ -93,17 +106,33 @@ const Rooms = () => {
         return getGuestCount(first.guests) - getGuestCount(second.guests);
       });
 
+    if (fromQuickSearch && matchingRooms.length > 0) {
+      return matchingRooms;
+    }
+
     const nonMatchingRooms = roomsWithStatus
-      .filter((room) => getGuestCount(room.guests) < requestedGuests)
+      .filter((room) => !matchesGuestSearch(room))
       .sort((first, second) => Number(first.isUnavailableForSearch) - Number(second.isUnavailableForSearch));
 
     return [...matchingRooms, ...nonMatchingRooms];
-  }, [managedRooms, requestedGuests, searchState.checkIn, searchState.checkOut, storedBookings]);
+  }, [
+    exactGuestMatch,
+    fromQuickSearch,
+    managedRooms,
+    requestedGuests,
+    searchState.checkIn,
+    searchState.checkOut,
+    storedBookings,
+  ]);
 
   const featuredRoom = orderedRooms[0] || null;
   const remainingRooms = orderedRooms.slice(1);
   const availableMatches = orderedRooms.filter(
-    (room) => getGuestCount(room.guests) >= requestedGuests && !room.isUnavailableForSearch
+    (room) => {
+      const guestCount = getGuestCount(room.guests);
+      const guestMatches = exactGuestMatch ? guestCount === requestedGuests : guestCount >= requestedGuests;
+      return guestMatches && !room.isUnavailableForSearch;
+    }
   );
   const searchMatched = requestedGuests ? availableMatches.length > 0 : false;
   const noAvailableRoom =
@@ -112,19 +141,11 @@ const Rooms = () => {
     availableMatches.length === 0;
 
   const getRoomBookingState = (room) => ({
-    checkoutItem: {
-      title: room.name,
-      description: `${room.description} Check-In: ${defaultCheckIn}, Check-Out: ${defaultCheckOut}`,
-      image: room.image,
-      amount: getRoomAmount(room.price),
-      type: 'Room Booking',
-      bookingDetails: {
-        roomName: room.name,
-        checkIn: defaultCheckIn,
-        checkOut: defaultCheckOut,
-        nights: 1,
-      },
-    },
+    roomName: room.name,
+    checkIn: defaultCheckIn,
+    checkOut: defaultCheckOut,
+    guests: String(Math.max(requestedGuests || getGuestCount(room.guests), 1)),
+    paymentNotice: `Select your dates for ${room.name} and we will calculate the final total before payment.`,
   });
 
   const getBookedSummary = (room) => {
@@ -157,14 +178,14 @@ const Rooms = () => {
               {noAvailableRoom
                 ? `No available room for ${requestedGuests} guest${requestedGuests > 1 ? 's' : ''}`
                 : searchMatched
-                ? `Best match for ${requestedGuests} guest${requestedGuests > 1 ? 's' : ''}`
+                ? `${exactGuestMatch ? 'Exact match' : 'Best match'} for ${requestedGuests} guest${requestedGuests > 1 ? 's' : ''}`
                 : `No exact match for ${requestedGuests} guest${requestedGuests > 1 ? 's' : ''}`}
             </strong>
             <span>
               {noAvailableRoom
                 ? `All matching rooms are already booked for ${searchState.checkIn} to ${searchState.checkOut}.`
                 : searchState.checkIn && searchState.checkOut
-                ? `Check-In: ${searchState.checkIn} | Check-Out: ${searchState.checkOut}`
+                ? `Check-In: ${searchState.checkIn} | Check-Out: ${searchState.checkOut}${fromQuickSearch ? ' | Showing your searched room type first.' : ''}`
                 : 'Showing the closest available room options first.'}
             </span>
           </div>
@@ -226,7 +247,7 @@ const Rooms = () => {
             ) : (
               <Link
                 className="room-card__cta room-card__cta--secondary"
-                to="/makepayment"
+                to="/bookings"
                 state={getRoomBookingState(featuredRoom)}
               >
                 Book Now
@@ -281,8 +302,8 @@ const Rooms = () => {
                 ) : (
                   <Link
                     className="room-card__cta room-card__cta--secondary"
-                    to="/makepayment"
-                    state={getRoomBookingState(room)}
+                    to="/bookings"
+pdat                  state={getRoomBookingState(room)}
                   >
                     Book Now
                   </Link>

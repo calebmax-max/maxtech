@@ -1,9 +1,15 @@
 const ROOM_BOOKINGS_KEY = 'elitehotels-room-bookings';
 
 const isBrowser = typeof window !== 'undefined';
+const formatDate = (date) => date.toISOString().split('T')[0];
 
 const sortBookings = (bookings) =>
   [...bookings].sort((first, second) => first.checkIn.localeCompare(second.checkIn));
+
+const pruneExpiredBookings = (bookings) => {
+  const today = formatDate(new Date());
+  return bookings.filter((booking) => booking?.checkOut && booking.checkOut >= today);
+};
 
 export const getStoredRoomBookings = () => {
   if (!isBrowser) {
@@ -12,7 +18,14 @@ export const getStoredRoomBookings = () => {
 
   try {
     const savedBookings = window.localStorage.getItem(ROOM_BOOKINGS_KEY);
-    return savedBookings ? JSON.parse(savedBookings) : [];
+    const parsedBookings = savedBookings ? JSON.parse(savedBookings) : [];
+    const activeBookings = sortBookings(pruneExpiredBookings(parsedBookings));
+
+    if (savedBookings && activeBookings.length !== parsedBookings.length) {
+      window.localStorage.setItem(ROOM_BOOKINGS_KEY, JSON.stringify(activeBookings));
+    }
+
+    return activeBookings;
   } catch (error) {
     console.error('Unable to read stored room bookings.', error);
     return [];
