@@ -69,6 +69,9 @@ const Getproducts = () => {
   }
 
   // We shall use the useEffect hook. It enables us to automatically re-render new features incase of any changes
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   // console.log(products)
   const roomCollections = [
@@ -254,7 +257,11 @@ const Getproducts = () => {
             ))}
           </div>
 
-          <button className="feature-cta feature-cta--blue" type="button">
+          <button
+            className="feature-cta feature-cta--blue"
+            type="button"
+            onClick={() => navigate('/rooms')}
+          >
             View All Rooms &rsaquo;
           </button>
         </div>

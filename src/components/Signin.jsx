@@ -2,11 +2,9 @@ import axios from 'axios';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../utils/api';
+import { ADMIN_EMAIL, ADMIN_PASSWORD, setAdminSession } from '../utils/adminSession';
 
-// ✅ GLOBAL AXIOS CONFIG
 axios.defaults.withCredentials = true;
-
-const ADMIN_EMAIL = "caleb@gmail.com"; // 👑 your admin email
 
 const Signin = () => {
   const navigate = useNavigate();
@@ -24,26 +22,43 @@ const Signin = () => {
     setError('');
     setSuccess('');
 
-    if (!email.trim() || !password.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+
+    if (!normalizedEmail || !trimmedPassword) {
       setError('Email and password are required');
+      return;
+    }
+
+    if (normalizedEmail === ADMIN_EMAIL && trimmedPassword === ADMIN_PASSWORD) {
+      setLoading('Opening admin panel...');
+      setAdminSession({
+        email: ADMIN_EMAIL,
+        name: 'Caleb Tonny',
+      });
+      setSuccess('Admin access granted');
+
+      setTimeout(() => {
+        setLoading('');
+        navigate('/admin', { replace: true });
+      }, 400);
+
       return;
     }
 
     setLoading('Signing you in...');
 
     try {
-      const payload = {
-        email: email.trim().toLowerCase(),
-        password: password.trim()
-      };
-
       const response = await axios.post(
         buildApiUrl('/api/signin'),
-        payload,
+        {
+          email: normalizedEmail,
+          password: trimmedPassword,
+        },
         {
           headers: {
-            "Content-Type": "application/json"
-          }
+            'Content-Type': 'application/json',
+          },
         }
       );
 
@@ -52,24 +67,23 @@ const Signin = () => {
 
       const userEmail = response.data.user?.email?.toLowerCase();
 
-      // ✅ REDIRECT BASED ON EMAIL
       setTimeout(() => {
         if (userEmail === ADMIN_EMAIL) {
-          navigate('/admin');   // 👑 ADMIN PANEL
-        } else {
-          navigate('/');        // 👤 NORMAL USER
+          setAdminSession({
+            email: ADMIN_EMAIL,
+            name: response.data.user?.username || 'Caleb Tonny',
+          });
+          navigate('/admin', { replace: true });
+          return;
         }
-      }, 800);
 
+        navigate('/');
+      }, 800);
     } catch (requestError) {
       setLoading('');
-      setError(
-        requestError.response?.data?.message || "Invalid email or password"
-      );
+      setError(requestError.response?.data?.message || 'Invalid email or password');
     }
   };
-
-
 
   return (
     <section className="auth-page auth-page--signin">
@@ -101,7 +115,7 @@ const Signin = () => {
           {error && <div className="auth-alert auth-alert--error">{error}</div>}
 
           <form className="auth-form auth-form--signin" onSubmit={handleSubmit}>
-            <label className="auth-field">
+            <label className="auth-field auth-field--signin">
               <span>Email Address</span>
               <input
                 type="email"
@@ -112,7 +126,7 @@ const Signin = () => {
               />
             </label>
 
-            <label className="auth-field">
+            <label className="auth-field auth-field--signin">
               <span>Password</span>
               <div className="auth-password">
                 <input
@@ -124,7 +138,8 @@ const Signin = () => {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(prev => !prev)}
+                  className="auth-password__toggle"
+                  onClick={() => setShowPassword((previous) => !previous)}
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
@@ -135,8 +150,8 @@ const Signin = () => {
               Sign In
             </button>
 
-            <p>
-              Don’t have an account? <Link to="/signup">Create one</Link>
+            <p className="auth-switch">
+              Don&apos;t have an account? <Link to="/signup">Create one</Link>
             </p>
           </form>
         </div>

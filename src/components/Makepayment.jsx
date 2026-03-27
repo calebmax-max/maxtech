@@ -1,30 +1,15 @@
 import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
-//useLocation	Access data passed from previous pages (room, food, booking)
 import { useLocation, useNavigate } from 'react-router-dom';
-//submitFoodOrder, submitRoomBooking, submitStayBooking: Utility functions for sending checkout requests.
 import { submitFoodOrder, submitRoomBooking, submitStayBooking } from '../utils/checkoutApi';
 import { buildApiUrl } from '../utils/api';
 import { fetchManagedDiningCatalog, getManagedFoodCheckoutItems } from '../utils/adminCatalog';
 import { saveRoomBooking } from '../utils/roomBookingStorage';
 import Loader from './Loader';
 
-//Defines which item types count as food-related payments.
-//Using a Set makes membership checks efficient.
 const FOOD_PAYMENT_TYPES = new Set(['Food Order', 'Featured Dish']);
-
-//Checks if a given item is a food-related payment type.
-//Uses optional chaining (item?.type) to avoid errors if item is null or undefined.
 const isFoodPaymentItem = (item) => FOOD_PAYMENT_TYPES.has(item?.type);
 
-
-//Ensures every cart item has a consistent structure.
-//Generates a fallback id if one isn’t provided (slugified from type + title).
-//Defaults:
-//amount → 0 if missing.
-//type → "Food Order".
-//category → "Menu Item".
-//quantity → 1 unless specified.
 const normalizeCartItem = (item, quantity = 1) => ({
   id: item.id || `${item.type}-${item.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
   title: item.title,
@@ -36,20 +21,15 @@ const normalizeCartItem = (item, quantity = 1) => ({
   quantity,
 });
 
-
-//Converts a Date object into a YYYY-MM-DD string.
-//Useful for storing or displaying booking dates.
 const formatDate = (date) => date.toISOString().split('T')[0];
 
 const Makepayment = () => {
   const [allFoodCheckoutItems, setAllFoodCheckoutItems] = useState(() => getManagedFoodCheckoutItems());
   const location = useLocation();
-  //This pulls data passed from the previous page (like a selected product or checkout item).
+  const navigate = useNavigate();
   const { product, checkoutItem, paymentNotice } = location.state || {};
   const today = formatDate(new Date());
-//If checkoutItem exists, use it directly.
-//If only product exists, build a simplified object with title, description, image, cost, and mark it as "Food Order".
-//Otherwise, return null.
+
   const paymentItem = useMemo(() => {
     if (checkoutItem) {
       return checkoutItem;
@@ -67,11 +47,9 @@ const Makepayment = () => {
 
     return null;
   }, [checkoutItem, product]);
-  const isFoodOrder = isFoodPaymentItem(paymentItem);
 
-  const navigate = useNavigate();
+  const isFoodOrder = isFoodPaymentItem(paymentItem);
   const [number, setNumber] = useState('');
-  const [amount, setAmount] = useState(paymentItem ? String(paymentItem.amount) : '');
   const [preferredDate, setPreferredDate] = useState(today);
   const [preferredTime, setPreferredTime] = useState('12:30');
   const [cartItems, setCartItems] = useState([]);
@@ -98,10 +76,6 @@ const Makepayment = () => {
   }, []);
 
   useEffect(() => {
-    //If it’s a food order, normalize and add the item to the cart.
-//Otherwise, clear the cart.
-
-
     if (isFoodOrder && paymentItem) {
       setCartItems([normalizeCartItem(paymentItem)]);
       setSelectedFoodId(paymentItem.id || allFoodCheckoutItems[0]?.id || '');
@@ -113,27 +87,18 @@ const Makepayment = () => {
   }, [allFoodCheckoutItems, isFoodOrder, paymentItem]);
 
   const foodTotal = useMemo(
-
-    //Sums up all items in the cart.
     () => cartItems.reduce((total, item) => total + item.amount * item.quantity, 0),
     [cartItems]
   );
 
-  useEffect(() => {
-    //Keeps the displayed amount in sync with cart totals.
-    if (isFoodOrder) {
-      setAmount(foodTotal ? String(foodTotal) : '');
-      return;
-    }
-
-    setAmount(paymentItem ? String(paymentItem.amount) : '');
-  }, [foodTotal, isFoodOrder, paymentItem]);
-
-  const expectedAmount = isFoodOrder ? foodTotal : paymentItem?.amount || 0;
+  const expectedAmount = isFoodOrder ? foodTotal : Number(paymentItem?.amount) || 0;
   const selectedFood = allFoodCheckoutItems.find((item) => item.id === selectedFoodId) || null;
 
+  const bookingDetails = paymentItem?.bookingPageDetails || paymentItem?.bookingDetails || null;
+  const bookingNights = bookingDetails?.nights || 0;
+  const bookingRoomName = bookingDetails?.roomName || bookingDetails?.roomType || paymentItem?.title || '';
+
   const updateCartQuantity = (itemId, nextQuantity) => {
-    //Ensures quantity is at least 1, then updates the cart.
     const quantity = Math.max(1, Number(nextQuantity) || 1);
     setCartItems((currentItems) =>
       currentItems.map((item) => (item.id === itemId ? { ...item, quantity } : item))
@@ -141,11 +106,9 @@ const Makepayment = () => {
   };
 
   const removeCartItem = (itemId) => {
-    //Deletes an item from the cart.
     setCartItems((currentItems) => currentItems.filter((item) => item.id !== itemId));
   };
 
-  //Prepares to add a selected food item to the cart
   const addFoodToCart = () => {
     if (!selectedFood) {
       return;
@@ -158,24 +121,18 @@ const Makepayment = () => {
 
       if (existingItem) {
         return currentItems.map((item) =>
-          item.id === selectedFood.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
+          item.id === selectedFood.id ? { ...item, quantity: item.quantity + quantity } : item
         );
       }
 
-
-      //This adds the currently selected food item into the cart.
-//It uses normalizeCartItem to ensure the item has a consistent structure (id, title, amount, etc.).
-//After adding, it resets the quantity selector back to "1" so the user doesn’t accidentally add multiple items next time.
       return [...currentItems, normalizeCartItem(selectedFood, quantity)];
     });
 
     setSelectedFoodQuantity('1');
   };
 
-  const handlesubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setLoading(true);
     setSuccess('');
     setError('');
@@ -189,41 +146,40 @@ const Makepayment = () => {
         throw new Error('Add at least one food item before checkout.');
       }
 
-      const enteredAmount = Number(amount);
-
-      if (!enteredAmount || enteredAmount !== expectedAmount) {
-        throw new Error(`Enter the exact required amount: Kes ${expectedAmount.toLocaleString()}`);
+      if (!number.trim()) {
+        throw new Error('Enter the phone number that should receive the M-Pesa prompt.');
       }
 
       const response = await axios.post(
-  buildApiUrl('/api/mpesa_payment'),
-  {
-    phone: number,
-    amount: enteredAmount
-  },
-  {
-    withCredentials: true, // ✅ IMPORTANT
-    headers: {
-      "Content-Type": "application/json"
-    }
-  }
-);
+        buildApiUrl('/api/mpesa_payment'),
+        {
+          phone: number.trim(),
+          amount: expectedAmount,
+        },
+        {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       if (paymentItem.type === 'Room Booking' && paymentItem.bookingDetails) {
         await submitRoomBooking({
-          room_name: paymentItem.bookingDetails.roomName,
+          room_name: bookingRoomName,
           description: paymentItem.description,
           check_in: paymentItem.bookingDetails.checkIn,
           check_out: paymentItem.bookingDetails.checkOut,
           nights: paymentItem.bookingDetails.nights || 1,
-          amount: enteredAmount,
-          payment_phone: number,
+          amount: expectedAmount,
+          payment_phone: number.trim(),
         });
 
         saveRoomBooking({
-          roomName: paymentItem.bookingDetails.roomName,
+          roomName: bookingRoomName,
           checkIn: paymentItem.bookingDetails.checkIn,
           checkOut: paymentItem.bookingDetails.checkOut,
+          customerName: paymentItem.bookingDetails.customerName || '',
           bookedAt: new Date().toISOString(),
         });
       }
@@ -233,8 +189,8 @@ const Makepayment = () => {
           order_title: paymentItem.title,
           preferred_date: preferredDate,
           preferred_time: preferredTime,
-          total_amount: enteredAmount,
-          payment_phone: number,
+          total_amount: expectedAmount,
+          payment_phone: number.trim(),
           items: cartItems.map((item) => ({
             item_name: item.title,
             category: item.category,
@@ -248,26 +204,41 @@ const Makepayment = () => {
       if (paymentItem.type === 'Booking Estimate' && paymentItem.bookingPageDetails) {
         await submitStayBooking({
           customer_name: paymentItem.bookingPageDetails.customerName || '',
-          phone_number: paymentItem.bookingPageDetails.phoneNumber || number,
-          room_type: paymentItem.bookingPageDetails.roomType || '',
+          phone_number: paymentItem.bookingPageDetails.phoneNumber || number.trim(),
+          payment_phone: paymentItem.bookingPageDetails.phoneNumber || number.trim(),
+          room_name: bookingRoomName,
+          room_type: bookingRoomName,
           guests: paymentItem.bookingPageDetails.guests || 0,
           meal_plan: paymentItem.bookingPageDetails.mealPlan || '',
           special_request: paymentItem.bookingPageDetails.specialRequest || '',
           check_in: paymentItem.bookingPageDetails.checkIn || null,
           check_out: paymentItem.bookingPageDetails.checkOut || null,
           nights: paymentItem.bookingPageDetails.nights || 0,
-          amount: enteredAmount,
+          amount: expectedAmount,
+        });
+
+        saveRoomBooking({
+          roomName: bookingRoomName,
+          checkIn: paymentItem.bookingPageDetails.checkIn,
+          checkOut: paymentItem.bookingPageDetails.checkOut,
+          customerName: paymentItem.bookingPageDetails.customerName || '',
+          bookedAt: new Date().toISOString(),
         });
       }
 
-      setLoading(false);
-      setSuccess(response.data.message || `STK push sent for ${paymentItem.title}. Check your phone and enter your M-Pesa PIN.`);
-      setTimeout(() => {
-        setSuccess('');
-      }, 3000);
+      setSuccess(
+        response.data.message ||
+          `STK push sent for ${paymentItem.title}. Check your phone and enter your M-Pesa PIN.`
+      );
     } catch (paymentError) {
+      setError(
+        paymentError.response?.data?.error ||
+          paymentError.response?.data?.message ||
+          paymentError.message ||
+          'Payment failed. Try again.'
+      );
+    } finally {
       setLoading(false);
-      setError(paymentError.message || 'Payment failed. Try again.');
     }
   };
 
@@ -299,13 +270,40 @@ const Makepayment = () => {
       <div className="payment-shell">
         <div className="payment-summary-card">
           {paymentItem.image && (
-            <img src={paymentItem.image} alt={paymentItem.title} className="payment-summary-card__image" />
+            <img
+              src={paymentItem.image}
+              alt={paymentItem.title}
+              className="payment-summary-card__image"
+            />
           )}
 
           <div className="payment-summary-card__body">
             <p className="payment-summary-card__label">{paymentItem.type}</p>
             <h3>{paymentItem.title}</h3>
             <p>{paymentItem.description}</p>
+
+            {!isFoodOrder && bookingNights > 0 && (
+              <div className="payment-cart">
+                <div className="payment-cart__date">
+                  <span>Length of Stay</span>
+                  <strong>
+                    {bookingNights} night{bookingNights > 1 ? 's' : ''}
+                  </strong>
+                </div>
+                {bookingDetails?.checkIn && (
+                  <div className="payment-cart__date">
+                    <span>Check-In</span>
+                    <strong>{bookingDetails.checkIn}</strong>
+                  </div>
+                )}
+                {bookingDetails?.checkOut && (
+                  <div className="payment-cart__date">
+                    <span>Check-Out</span>
+                    <strong>{bookingDetails.checkOut}</strong>
+                  </div>
+                )}
+              </div>
+            )}
 
             {isFoodOrder && (
               <div className="payment-cart">
@@ -339,7 +337,11 @@ const Makepayment = () => {
                         onChange={(e) => updateCartQuantity(item.id, e.target.value)}
                       />
                       <strong>KSh {(item.amount * item.quantity).toLocaleString()}</strong>
-                      <button type="button" className="payment-cart__remove" onClick={() => removeCartItem(item.id)}>
+                      <button
+                        type="button"
+                        className="payment-cart__remove"
+                        onClick={() => removeCartItem(item.id)}
+                      >
                         Remove
                       </button>
                     </div>
@@ -390,7 +392,7 @@ const Makepayment = () => {
           <div className="payment-form-card__header">
             <p className="payment-form-card__eyebrow">Payment Details</p>
             <h3>Complete Payment</h3>
-            <p>Enter the exact total shown and you will receive a message to complete the payment.</p>
+            <p>Enter your phone number and you will receive a message to complete the payment.</p>
           </div>
 
           {paymentNotice && <div className="payment-message payment-message--success">{paymentNotice}</div>}
@@ -398,12 +400,12 @@ const Makepayment = () => {
           {success && <div className="payment-message payment-message--success">{success}</div>}
           {error && <div className="payment-message payment-message--error">{error}</div>}
 
-          <form className="payment-form" onSubmit={handlesubmit}>
+          <form className="payment-form" onSubmit={handleSubmit}>
             <label className="payment-field">
               <span>Phone Number</span>
               <input
-                type="number"
-                placeholder="Enter phone number 254XXXXXXX"
+                type="tel"
+                placeholder="Enter phone number 2547XXXXXXXX"
                 required
                 value={number}
                 onChange={(e) => setNumber(e.target.value)}
@@ -412,41 +414,35 @@ const Makepayment = () => {
 
             {isFoodOrder && (
               <>
-              <label className="payment-field">
-                <span>Preferred Date</span>
-                <input
-                  type="date"
-                  min={today}
-                  required
-                  value={preferredDate}
-                  onChange={(e) => setPreferredDate(e.target.value)}
-                />
-              </label>
+                <label className="payment-field">
+                  <span>Preferred Date</span>
+                  <input
+                    type="date"
+                    min={today}
+                    required
+                    value={preferredDate}
+                    onChange={(e) => setPreferredDate(e.target.value)}
+                  />
+                </label>
 
-              <label className="payment-field">
-                <span>Preferred Time</span>
-                <input
-                  type="time"
-                  required
-                  value={preferredTime}
-                  onChange={(e) => setPreferredTime(e.target.value)}
-                />
-              </label>
+                <label className="payment-field">
+                  <span>Preferred Time</span>
+                  <input
+                    type="time"
+                    required
+                    value={preferredTime}
+                    onChange={(e) => setPreferredTime(e.target.value)}
+                  />
+                </label>
               </>
             )}
 
             <label className="payment-field">
-              <span>Required Amount</span>
-              <input
-                type="number"
-                placeholder={`Enter exact amount ${expectedAmount}`}
-                required
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
+              <span>Amount To Pay</span>
+              <input type="text" readOnly value={`KSh ${expectedAmount.toLocaleString()}`} />
             </label>
 
-            <button type="submit" className="payment-submit">
+            <button type="submit" className="payment-submit" disabled={loading}>
               Make Payment
             </button>
           </form>

@@ -1,6 +1,6 @@
 import './App.css';
 import axios from 'axios'
-import { BrowserRouter, Routes, Route, Link, NavLink, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Getproducts from './components/Home';
 import Signup from './components/Signup';
@@ -15,7 +15,12 @@ import Bookings from './components/Bookings';
 import Contactus from './components/Contactus';
 import EventInquiry from './components/EventInquiry';
 import Admin from './components/Admin';
+import { isAdminAuthenticated } from './utils/adminSession';
 axios.defaults.withCredentials = true;
+
+function AdminRoute() {
+  return isAdminAuthenticated() ? <Admin /> : <Navigate to="/signin" replace />;
+}
 
 function AppLayout() {
   const location = useLocation();
@@ -77,7 +82,7 @@ function AppLayout() {
         <Route path="/rooms/:roomSlug" element={<RoomDetails />} />
         <Route path="/dining" element={<Dining />} />
         <Route path="/bookings" element={<Bookings />} />
-        <Route path="/admin" element={<Admin/>} />
+        <Route path="/admin" element={<AdminRoute />} />
         <Route path="/contactus" element={<Contactus />} />
         <Route path="/events" element={<EventInquiry />} />
         
