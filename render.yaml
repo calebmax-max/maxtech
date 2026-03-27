@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: elitehotel-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:application
+    envVars:
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: FLASK_SECRET_KEY
+        sync: false
+      - key: SESSION_COOKIE_SAMESITE
+        value: None
+      - key: SESSION_COOKIE_SECURE
+        value: true
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: 3306
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+
+  - type: web
+    name: elitehotel-frontend
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: www
+    envVars:
+      - key: REACT_APP_API_BASE_URL
+        fromService:
+          type: web
+          name: elitehotel-api
+          property: host
