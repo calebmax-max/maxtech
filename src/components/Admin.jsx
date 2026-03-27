@@ -13,6 +13,7 @@ import {
   clearAdminSession,
   getAdminSession,
   isAdminAuthenticated,
+  setActiveWorkspace,
 } from '../utils/adminSession';
 
 const defaultRoomForm = {
@@ -30,6 +31,18 @@ const defaultDishForm = {
   description: '',
 };
 
+const defaultWorkspaceForm = {
+  name: '',
+  slug: '',
+  contact_email: '',
+  logo_url: '',
+  primary_color: '',
+  accent_color: '',
+  hero_title: '',
+  contact_phone: '',
+  location: '',
+};
+
 const formatCurrency = (value) => {
   const numericValue = Number(String(value).replace(/[^0-9]/g, '')) || 0;
   return `KSh ${numericValue.toLocaleString()}`;
@@ -45,6 +58,8 @@ const Admin = () => {
   const [eventBookings, setEventBookings] = useState([]);
   const [roomBookings, setRoomBookings] = useState([]);
   const [backendVersion, setBackendVersion] = useState(null);
+  const [organization, setOrganization] = useState(getAdminSession()?.organization || null);
+  const [workspaceForm, setWorkspaceForm] = useState(defaultWorkspaceForm);
   const [roomForm, setRoomForm] = useState(defaultRoomForm);
   const [dishForm, setDishForm] = useState(defaultDishForm);
   const [status, setStatus] = useState('');
@@ -71,6 +86,23 @@ const Admin = () => {
         withCredentials: true,
       });
 
+      const nextOrganization = response.data.organization || null;
+      setOrganization(nextOrganization);
+      setWorkspaceForm(
+        nextOrganization
+          ? {
+              name: nextOrganization.name || '',
+              slug: nextOrganization.slug || '',
+              contact_email: nextOrganization.contact_email || '',
+              logo_url: nextOrganization.logo_url || '',
+              primary_color: nextOrganization.primary_color || '',
+              accent_color: nextOrganization.accent_color || '',
+              hero_title: nextOrganization.hero_title || '',
+              contact_phone: nextOrganization.contact_phone || '',
+              location: nextOrganization.location || '',
+            }
+          : defaultWorkspaceForm
+      );
       setUsers(response.data.users || []);
       setFoodOrders(response.data.food_orders || []);
       setEventBookings(response.data.event_bookings || []);
@@ -81,6 +113,7 @@ const Admin = () => {
       setFoodOrders([]);
       setEventBookings([]);
       setRoomBookings([]);
+      setOrganization(null);
       if (error.response?.status === 404) {
         setRemoteDataError(
           'The live server does not have /api/admin/overview yet. Restart or redeploy the Flask backend, then refresh this page. Check /api/debug/version too.'
@@ -163,6 +196,11 @@ const Admin = () => {
     setDishForm((current) => ({ ...current, [name]: value }));
   };
 
+  const handleWorkspaceFormChange = (event) => {
+    const { name, value } = event.target;
+    setWorkspaceForm((current) => ({ ...current, [name]: value }));
+  };
+
   const handleAddRoom = async (event) => {
     event.preventDefault();
 
@@ -239,6 +277,23 @@ const Admin = () => {
     navigate('/signin', { replace: true });
   };
 
+  const handleWorkspaceSave = async (event) => {
+    event.preventDefault();
+
+    try {
+      const response = await axios.put(buildApiUrl('/api/admin/workspace'), workspaceForm, {
+        withCredentials: true,
+      });
+      setOrganization(response.data);
+      if (response.data?.slug) {
+        setActiveWorkspace(response.data.slug);
+      }
+      setStatus(`Workspace updated: ${response.data.name}`);
+    } catch (error) {
+      setRemoteDataError(error.response?.data?.message || 'Unable to update workspace settings.');
+    }
+  };
+
   return (
     <section className="admin-shell">
       <div className="admin-shell__hero">
@@ -246,14 +301,16 @@ const Admin = () => {
           <p className="admin-shell__eyebrow">EliteHotels Admin Panel</p>
           <h1>Manage rooms, dining, users, bookings, and orders from one dashboard.</h1>
           <p>
-            This panel now shows live admin data for users, food orders, event bookings,
-            and room bookings while still letting you manage the local website catalog.
+            This panel now shows live admin data for one workspace at a time, which is the
+            first step toward a full SaaS setup. It still lets you manage the local website
+            catalog while the backend now scopes business records to an organization.
           </p>
         </div>
 
         <div className="admin-shell__hero-meta">
           <span>{adminSession?.name || 'Admin'}</span>
           <span>{adminSession?.email || 'Signed in'}</span>
+          <span>{organization?.name || adminSession?.organization?.name || 'Default workspace'}</span>
           <span>{new Date().toLocaleDateString()}</span>
           <span>{backendVersion?.version || 'Backend version unavailable'}</span>
         </div>
@@ -269,8 +326,10 @@ const Admin = () => {
             <span className="admin-session-banner__label">Access Status</span>
             <strong>{adminSession ? 'Authenticated admin session' : 'Session unavailable'}</strong>
             <p>
-              Sign in with <strong>caleb@gmail.com</strong> and <strong>Caleb123</strong> to
-              open this panel directly.
+              Workspace:
+              {' '}
+              <strong>{organization?.name || adminSession?.organization?.name || 'Default workspace'}</strong>
+              . Tenant data, catalog, and admin visibility are now scoped per organization in the backend.
             </p>
           </div>
 
@@ -325,6 +384,84 @@ const Admin = () => {
         <div className="admin-shell__tools">
           <div className="admin-shell__tools-main">
             <div className="admin-board__grid">
+              <article className="admin-data-card">
+                <div className="admin-data-card__header">
+                  <p>Workspace Settings</p>
+                  <h3>Brand and identify this tenant workspace</h3>
+                </div>
+
+                <form className="admin-form-grid" onSubmit={handleWorkspaceSave}>
+                  <input
+                    className="admin-input"
+                    name="name"
+                    placeholder="Workspace name"
+                    value={workspaceForm.name}
+                    onChange={handleWorkspaceFormChange}
+                    required
+                  />
+                  <input
+                    className="admin-input"
+                    name="slug"
+                    placeholder="workspace-slug"
+                    value={workspaceForm.slug}
+                    onChange={handleWorkspaceFormChange}
+                    required
+                  />
+                  <input
+                    className="admin-input"
+                    name="contact_email"
+                    placeholder="Contact email"
+                    value={workspaceForm.contact_email}
+                    onChange={handleWorkspaceFormChange}
+                  />
+                  <input
+                    className="admin-input"
+                    name="contact_phone"
+                    placeholder="Contact phone"
+                    value={workspaceForm.contact_phone}
+                    onChange={handleWorkspaceFormChange}
+                  />
+                  <input
+                    className="admin-input"
+                    name="primary_color"
+                    placeholder="Primary color e.g. #0d6adf"
+                    value={workspaceForm.primary_color}
+                    onChange={handleWorkspaceFormChange}
+                  />
+                  <input
+                    className="admin-input"
+                    name="accent_color"
+                    placeholder="Accent color e.g. #f0bc47"
+                    value={workspaceForm.accent_color}
+                    onChange={handleWorkspaceFormChange}
+                  />
+                  <input
+                    className="admin-input admin-input--wide"
+                    name="logo_url"
+                    placeholder="Logo URL"
+                    value={workspaceForm.logo_url}
+                    onChange={handleWorkspaceFormChange}
+                  />
+                  <input
+                    className="admin-input admin-input--wide"
+                    name="hero_title"
+                    placeholder="Homepage hero title"
+                    value={workspaceForm.hero_title}
+                    onChange={handleWorkspaceFormChange}
+                  />
+                  <input
+                    className="admin-input admin-input--wide"
+                    name="location"
+                    placeholder="Location"
+                    value={workspaceForm.location}
+                    onChange={handleWorkspaceFormChange}
+                  />
+                  <button type="submit" className="admin-button">
+                    Save Workspace
+                  </button>
+                </form>
+              </article>
+
               <article className="admin-data-card">
                 <div className="admin-data-card__header">
                   <p>Room Catalog</p>

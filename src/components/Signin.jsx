@@ -2,7 +2,7 @@ import axios from 'axios';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../utils/api';
-import { ADMIN_EMAIL, ADMIN_PASSWORD, setAdminSession } from '../utils/adminSession';
+import { clearAdminSession, setActiveWorkspace, setAdminSession } from '../utils/adminSession';
 
 axios.defaults.withCredentials = true;
 
@@ -18,31 +18,15 @@ const Signin = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-
     setError('');
     setSuccess('');
+    clearAdminSession();
 
     const normalizedEmail = email.trim().toLowerCase();
     const trimmedPassword = password.trim();
 
     if (!normalizedEmail || !trimmedPassword) {
       setError('Email and password are required');
-      return;
-    }
-
-    if (normalizedEmail === ADMIN_EMAIL && trimmedPassword === ADMIN_PASSWORD) {
-      setLoading('Opening admin panel...');
-      setAdminSession({
-        email: ADMIN_EMAIL,
-        name: 'Caleb Tonny',
-      });
-      setSuccess('Admin access granted');
-
-      setTimeout(() => {
-        setLoading('');
-        navigate('/admin', { replace: true });
-      }, 400);
-
       return;
     }
 
@@ -62,23 +46,32 @@ const Signin = () => {
         }
       );
 
+      const signedInUser = response.data.user;
       setLoading('');
       setSuccess(response.data.message);
 
-      const userEmail = response.data.user?.email?.toLowerCase();
+      if (signedInUser?.organization?.slug) {
+        setActiveWorkspace(signedInUser.organization.slug);
+      }
+
+      if (signedInUser?.is_admin) {
+        setAdminSession({
+          email: signedInUser.email,
+          name: signedInUser.username || 'Admin',
+          isAdmin: true,
+          orgId: signedInUser.org_id || null,
+          organization: signedInUser.organization || null,
+        });
+
+        setTimeout(() => {
+          navigate('/admin', { replace: true });
+        }, 500);
+        return;
+      }
 
       setTimeout(() => {
-        if (userEmail === ADMIN_EMAIL) {
-          setAdminSession({
-            email: ADMIN_EMAIL,
-            name: response.data.user?.username || 'Caleb Tonny',
-          });
-          navigate('/admin', { replace: true });
-          return;
-        }
-
         navigate('/');
-      }, 800);
+      }, 700);
     } catch (requestError) {
       setLoading('');
       setError(requestError.response?.data?.message || 'Invalid email or password');

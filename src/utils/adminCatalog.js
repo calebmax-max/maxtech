@@ -1,10 +1,41 @@
+import axios from 'axios';
 import { defaultRoomOptions } from '../data/roomsCatalog';
-import { defaultDiningCategories, defaultFeaturedPlates, createFoodCheckoutItem } from '../data/diningMenu';
+import {
+  defaultDiningCategories,
+  defaultFeaturedPlates,
+  createFoodCheckoutItem,
+} from '../data/diningMenu';
+import { buildApiUrl } from './api';
 
 const ROOMS_KEY = 'admin_rooms_catalog';
 const DINING_KEY = 'admin_dining_catalog';
-
+const WORKSPACE_KEY = 'elitehotels-workspace-slug';
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+const defaultDiningCatalog = () => ({
+  categories: clone(defaultDiningCategories),
+  featuredPlates: clone(defaultFeaturedPlates),
+});
+
+export const getWorkspaceSlug = () => {
+  if (typeof window === 'undefined') {
+    return 'default-workspace';
+  }
+
+  return window.localStorage.getItem(WORKSPACE_KEY) || 'default-workspace';
+};
+
+export const setWorkspaceSlug = (slug) => {
+  if (typeof window !== 'undefined' && slug) {
+    window.localStorage.setItem(WORKSPACE_KEY, slug);
+  }
+};
+
+const buildWorkspaceUrl = (path) => {
+  const workspace = encodeURIComponent(getWorkspaceSlug());
+  const separator = path.includes('?') ? '&' : '?';
+  return buildApiUrl(`${path}${separator}workspace=${workspace}`);
+};
 
 export const getManagedRooms = () => {
   try {
@@ -20,30 +51,40 @@ export const cacheManagedRooms = (rooms) => {
 };
 
 export const fetchManagedRooms = async () => {
-  const rooms = getManagedRooms();
-  cacheManagedRooms(rooms);
-  return rooms;
+  try {
+    const response = await axios.get(buildWorkspaceUrl('/api/catalog/rooms'));
+    const rooms = response.data.rooms || clone(defaultRoomOptions);
+    cacheManagedRooms(rooms);
+    return rooms;
+  } catch (error) {
+    const rooms = getManagedRooms();
+    cacheManagedRooms(rooms);
+    return rooms;
+  }
 };
 
 export const saveManagedRooms = async (rooms) => {
-  cacheManagedRooms(rooms);
-  return rooms;
+  try {
+    const response = await axios.put(
+      buildApiUrl('/api/admin/catalog/rooms'),
+      { rooms },
+      { withCredentials: true }
+    );
+    const nextRooms = response.data.rooms || rooms;
+    cacheManagedRooms(nextRooms);
+    return nextRooms;
+  } catch (error) {
+    cacheManagedRooms(rooms);
+    return rooms;
+  }
 };
 
 export const getManagedDiningCatalog = () => {
   try {
     const rawValue = localStorage.getItem(DINING_KEY);
-    return rawValue
-      ? JSON.parse(rawValue)
-      : {
-          categories: clone(defaultDiningCategories),
-          featuredPlates: clone(defaultFeaturedPlates),
-        };
+    return rawValue ? JSON.parse(rawValue) : defaultDiningCatalog();
   } catch (error) {
-    return {
-      categories: clone(defaultDiningCategories),
-      featuredPlates: clone(defaultFeaturedPlates),
-    };
+    return defaultDiningCatalog();
   }
 };
 
@@ -52,14 +93,37 @@ export const cacheManagedDiningCatalog = (catalog) => {
 };
 
 export const fetchManagedDiningCatalog = async () => {
-  const catalog = getManagedDiningCatalog();
-  cacheManagedDiningCatalog(catalog);
-  return catalog;
+  try {
+    const response = await axios.get(buildWorkspaceUrl('/api/catalog/dining'));
+    const catalog = response.data.catalog || defaultDiningCatalog();
+    cacheManagedDiningCatalog(catalog);
+    return catalog;
+  } catch (error) {
+    const catalog = getManagedDiningCatalog();
+    cacheManagedDiningCatalog(catalog);
+    return catalog;
+  }
 };
 
 export const saveManagedDiningCatalog = async (catalog) => {
-  cacheManagedDiningCatalog(catalog);
-  return catalog;
+  try {
+    const response = await axios.put(
+      buildApiUrl('/api/admin/catalog/dining'),
+      { catalog },
+      { withCredentials: true }
+    );
+    const nextCatalog = response.data.catalog || catalog;
+    cacheManagedDiningCatalog(nextCatalog);
+    return nextCatalog;
+  } catch (error) {
+    cacheManagedDiningCatalog(catalog);
+    return catalog;
+  }
+};
+
+export const fetchWorkspaceProfile = async () => {
+  const response = await axios.get(buildWorkspaceUrl('/api/catalog/workspace'));
+  return response.data;
 };
 
 export const getManagedFoodCheckoutItems = () => {

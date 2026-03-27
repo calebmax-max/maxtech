@@ -7,6 +7,13 @@ import React, { useEffect, useState } from 'react'
 import Loader from './Loader';
 import { useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../utils/api';
+import {
+  fetchManagedDiningCatalog,
+  fetchManagedRooms,
+  fetchWorkspaceProfile,
+  getManagedDiningCatalog,
+  getManagedRooms,
+} from '../utils/adminCatalog';
 
 
 //formatDate — Converts a Date object to "YYYY-MM-DD" string format (for <input type="date">)
@@ -27,6 +34,9 @@ const Getproducts = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const[error, setError] = useState("");
+  const [workspace, setWorkspace] = useState(null);
+  const [roomCollections, setRoomCollections] = useState(() => getManagedRooms().slice(0, 4));
+  const [featuredDishes, setFeaturedDishes] = useState(() => getManagedDiningCatalog().featuredPlates);
   const [quickCheckIn, setQuickCheckIn] = useState(today);
   const [quickCheckOut, setQuickCheckOut] = useState(getTomorrow(today));
   const [quickGuests, setQuickGuests] = useState("2");
@@ -71,32 +81,12 @@ const Getproducts = () => {
   // We shall use the useEffect hook. It enables us to automatically re-render new features incase of any changes
   useEffect(() => {
     fetchProducts();
+    fetchManagedRooms().then((rooms) => setRoomCollections(rooms.slice(0, 4))).catch(() => {});
+    fetchManagedDiningCatalog()
+      .then((catalog) => setFeaturedDishes(catalog.featuredPlates || []))
+      .catch(() => {});
+    fetchWorkspaceProfile().then(setWorkspace).catch(() => {});
   }, []);
-
-  // console.log(products)
-  const roomCollections = [
-    {
-      name: 'Deluxe Suite',
-      image:
-        'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80',
-    },
-    {
-      name: 'Ocean View Room',
-      image:
-        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80',
-    },
-    {
-      name: 'Family Room',
-      image:
-        'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80',
-    },
-    {
-      name: 'Executive Suite',
-      image:
-        'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80',
-    },
-  ];
-
 
   //Backup dishes if the API returns no data
   const fallbackDishes = [
@@ -130,7 +120,18 @@ const Getproducts = () => {
     },
   ];
 
-  const featuredDishes = products.length > 0 ? products.slice(0, 4) : fallbackDishes;
+  const resolvedFeaturedDishes =
+    featuredDishes.length > 0
+      ? featuredDishes.map((plate) => ({
+          product_name: plate.title,
+          product_description: plate.description,
+          product_cost: Number(String(plate.price).replace(/[^0-9]/g, '')) || 0,
+          product_photo: plate.image,
+          isFallback: true,
+        }))
+      : products.length > 0
+      ? products.slice(0, 4)
+      : fallbackDishes;
   const amenityHighlights = [
     {
       title: 'Luxury Accommodation',
@@ -152,7 +153,7 @@ const Getproducts = () => {
         <div className="hotel-hero__overlay">
           <div className="hotel-hero__content">
             <p className="hotel-hero__eyebrow">Luxury Stay And Fine Dining</p>
-            <h1>ELITE HOTELS</h1>
+            <h1>{workspace?.name || 'ELITE HOTELS'}</h1>
             <h2>WELCOME</h2>
             <div className="hotel-hero__divider"></div>
             <p className="hotel-hero__subtitle">
@@ -274,7 +275,7 @@ const Getproducts = () => {
           </div>
 
           <div className="feature-card-grid">
-            {featuredDishes.map((product) => (
+            {resolvedFeaturedDishes.map((product) => (
               <div className="feature-card feature-card--interactive" key={product.product_id || product.product_name}>
                 <img
                   src={product.isFallback ? product.product_photo : imageBaseUrl + product.product_photo}
