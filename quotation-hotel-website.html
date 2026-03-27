@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hotel Website Quotation</title>
+  <style>
+    :root {
+      --ink: #18212b;
+      --muted: #5c6875;
+      --line: #d9e0e7;
+      --accent: #9a6a18;
+      --paper: #ffffff;
+      --wash: #f7f8fa;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background: var(--wash);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    .page {
+      width: min(900px, calc(100% - 32px));
+      margin: 32px auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 48px;
+      box-shadow: 0 18px 42px rgba(24, 33, 43, 0.08);
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 20px;
+      margin-bottom: 28px;
+    }
+
+    .brand h1 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+      letter-spacing: 0.04em;
+    }
+
+    .brand p,
+    .meta p,
+    .note,
+    li {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .meta {
+      text-align: right;
+      min-width: 220px;
+    }
+
+    h2 {
+      margin: 28px 0 10px;
+      font-size: 1.05rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .price-box {
+      margin: 18px 0 28px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      background: #fffaf2;
+    }
+
+    .price-box strong {
+      display: block;
+      font-size: 1.8rem;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    ul {
+      padding-left: 20px;
+      margin: 10px 0 0;
+    }
+
+    .terms {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      padding: 16px 18px;
+      background: #fcfcfd;
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .footer {
+      margin-top: 36px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .page {
+        width: 100%;
+        margin: 0;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div class="brand">
+        <h1>QUOTATION</h1>
+        <p>Custom Hotel Website System</p>
+      </div>
+
+      <div class="meta">
+        <p><strong>Date:</strong> March 27, 2026</p>
+        <p><strong>Validity:</strong> 14 days</p>
+        <p><strong>Currency:</strong> Kenya Shillings (KSh)</p>
+      </div>
+    </header>
+
+    <section>
+      <p>
+        We are pleased to submit this quotation for the design and development of a custom hotel
+        website system with booking, dining, event management, and administrative features.
+      </p>
+    </section>
+
+    <section class="price-box">
+      <strong>KSh 300,000</strong>
+      <span>Recommended client quote</span>
+      <p class="note">Negotiable range: KSh 250,000 to KSh 350,000</p>
+    </section>
+
+    <section>
+      <h2>Project Scope</h2>
+      <ul>
+        <li>Custom hotel homepage and branded public-facing website pages</li>
+        <li>Rooms listing page with room details and room booking flow</li>
+        <li>Dining page with food listings and food ordering flow</li>
+        <li>Event booking and event inquiry functionality</li>
+        <li>Admin panel for managing rooms, foods, bookings, and user activity</li>
+        <li>Backend and database integration for storing and managing records</li>
+        <li>Payment integration structure for booking and order processing</li>
+        <li>Responsive layout for desktop and mobile devices</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Deliverables</h2>
+      <ul>
+        <li>Complete hotel website system</li>
+        <li>Admin dashboard access and management tools</li>
+        <li>Source code handover</li>
+        <li>Basic testing before final delivery</li>
+        <li>Deployment support if included in the final agreement</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Payment Terms</h2>
+      <div class="terms">
+        <div class="card">
+          <strong>Initial Deposit</strong>
+          <span>50% before customization or project handover</span>
+        </div>
+        <div class="card">
+          <strong>Final Balance</strong>
+          <span>50% upon final delivery and approval</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Estimated Timeline</h2>
+      <p>2 to 4 weeks depending on revisions, deployment requirements, and final custom requests.</p>
+    </section>
+
+    <section>
+      <h2>Optional Add-Ons</h2>
+      <ul>
+        <li>Domain and hosting setup</li>
+        <li>Ongoing maintenance and support</li>
+        <li>Admin panel training for staff</li>
+        <li>Search engine optimization setup</li>
+        <li>Additional custom features after delivery</li>
+      </ul>
+    </section>
+
+    <footer class="footer">
+      <p>
+        This quotation covers the hotel website system as presented and may be adjusted if
+        additional features, integrations, or support terms are requested.
+      </p>
+    </footer>
+  </main>
+</body>
+</html>
