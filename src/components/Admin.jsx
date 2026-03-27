@@ -58,6 +58,17 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
+const adminQuickLinks = [
+  { label: 'Rooms', target: 'admin-room-catalog' },
+  { label: 'Dining Highlights', target: 'admin-dining-highlights' },
+  { label: 'Food Menu', target: 'admin-food-menu' },
+  { label: 'All Foods', target: 'admin-all-foods' },
+  { label: 'Users', target: 'admin-users' },
+  { label: 'Orders', target: 'admin-food-orders' },
+  { label: 'Bookings', target: 'admin-room-bookings' },
+  { label: 'Shortcuts', target: 'admin-shortcuts' },
+];
+
 const Admin = () => {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
@@ -549,10 +560,18 @@ const Admin = () => {
           </div>
         </div>
 
+        <nav className="admin-quick-nav" aria-label="Admin section navigation">
+          {adminQuickLinks.map((link) => (
+            <a key={link.target} className="admin-quick-nav__link" href={`#${link.target}`}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
+
         <div className="admin-shell__tools">
           <div className="admin-shell__tools-main">
             <div className="admin-board__grid">
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-room-catalog">
                 <div className="admin-data-card__header">
                   <p>Room Catalog</p>
                   <h3>Add a room shown on the Rooms page</h3>
@@ -601,7 +620,7 @@ const Admin = () => {
                 </form>
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-dining-highlights">
                 <div className="admin-data-card__header">
                   <p>Dining Highlights</p>
                   <h3>Add a featured plate shown on the dining experience</h3>
@@ -657,7 +676,7 @@ const Admin = () => {
                 </form>
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-food-menu">
                 <div className="admin-data-card__header">
                   <p>Food Menu</p>
                   <h3>Add a dish to the food menu with its category and details</h3>
@@ -721,7 +740,7 @@ const Admin = () => {
                 </form>
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-all-foods">
                 <div className="admin-data-card__header">
                   <p>All Food Menu Items</p>
                   <h3>Every food item currently available in the dining menu</h3>
@@ -763,7 +782,7 @@ const Admin = () => {
                 )}
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-users">
                 <div className="admin-data-card__header">
                   <p>Registered Users</p>
                   <h3>Guest accounts from the backend</h3>
@@ -810,7 +829,7 @@ const Admin = () => {
                 )}
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-food-orders">
                 <div className="admin-data-card__header">
                   <p>Food Orders</p>
                   <h3>Recent dining checkouts</h3>
@@ -844,7 +863,7 @@ const Admin = () => {
                 )}
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-event-bookings">
                 <div className="admin-data-card__header">
                   <p>Event Bookings</p>
                   <h3>Submitted event inquiries</h3>
@@ -878,7 +897,7 @@ const Admin = () => {
                 )}
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-saved-rooms">
                 <div className="admin-data-card__header">
                   <p>Saved Rooms</p>
                   <h3>Current room catalog</h3>
@@ -925,7 +944,7 @@ const Admin = () => {
 
           <aside className="admin-shell__tools-side">
             <div className="admin-board">
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-room-bookings">
                 <div className="admin-data-card__header">
                   <p>Latest Room Bookings</p>
                   <h3>Database stay records</h3>
@@ -959,7 +978,7 @@ const Admin = () => {
                 )}
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-local-cache">
                 <div className="admin-data-card__header">
                   <p>Local Booking Cache</p>
                   <h3>Payments captured inside this browser</h3>
@@ -993,7 +1012,7 @@ const Admin = () => {
                 )}
               </article>
 
-              <article className="admin-data-card">
+              <article className="admin-data-card" id="admin-shortcuts">
                 <div className="admin-data-card__header">
                   <p>Website Shortcuts</p>
                   <h3>Quick navigation</h3>
