@@ -23,6 +23,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = os.getenv("SESSION_COOKIE_SAMESITE", "No
 app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
+
 client_origins = [
     origin.strip()
     for origin in os.getenv(
@@ -32,18 +33,15 @@ client_origins = [
     if origin.strip()
 ]
 
-CORS(app, supports_credentials=True, origins=client_origins)
+CORS(
+    app,
+    supports_credentials=True,
+    origins=client_origins,
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"]
+)
 
 
-@app.after_request
-def handle_options(response):
-    origin = request.headers.get("Origin", "")
-    if origin in client_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
-    return response
 
 
 # ---------------- DATABASE ----------------
