@@ -636,16 +636,18 @@ def create_tables():
         """
     )
 
-    cur.execute(
-        """
-        INSERT INTO users(is_admin, role, username, email, phone, password)
-        VALUES(1, 'owner', 'Caleb Tonny', %s, '', %s)
-        ON DUPLICATE KEY UPDATE
-        is_admin=1,
-        role='owner'
-        """,
-        (ADMIN_EMAIL, generate_password_hash(ADMIN_PASSWORD)),
-    )
+    cur.execute("SELECT user_id FROM users WHERE LOWER(email)=%s", (ADMIN_EMAIL,))
+    admin_user = cur.fetchone()
+    if admin_user is None:
+        cur.execute(
+            """
+            INSERT INTO users(is_admin, role, username, email, phone, password)
+            VALUES(1, 'owner', 'Caleb Tonny', %s, '', %s)
+            """,
+            (ADMIN_EMAIL, generate_password_hash(ADMIN_PASSWORD)),
+        )
+    else:
+        cur.execute("UPDATE users SET is_admin=1, role='owner' WHERE user_id=%s", (admin_user["user_id"],))
     cur.execute(
         """
         INSERT INTO site_catalog(id, rooms_json, dining_json)
@@ -1141,8 +1143,13 @@ def signin():
 
         # Auto-sync admin password
         if is_admin_email(user["email"]):
-            user = sync_admin_account_password(cur, user)
-            conn.commit()
+            try:
+                user = sync_admin_account_password(cur, user)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                cur.execute("SELECT * FROM users WHERE email=%s", (email,))
+                user = cur.fetchone()
 
         password_ok, needs_upgrade = verify_password(user["password"], password)
         if not password_ok:
