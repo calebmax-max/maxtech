@@ -9,7 +9,7 @@ const normalizedEnvApiBase = envApiBase.replace(/\/+$/, '');
 
 export const API_BASE =
   normalizedEnvApiBase ||
-  (process.env.NODE_ENV === 'production' ? '' : 'http://calebtonny.alwaysdata.net');
+  (process.env.NODE_ENV === 'production' ? '' : 'https://calebtonny.alwaysdata.net');
 
 export const buildApiUrl = (path) => {
   if (!path) {
