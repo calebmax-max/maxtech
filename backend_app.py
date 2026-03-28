@@ -1037,8 +1037,19 @@ def debug_check_password():
 
 
 # ---------------- AUTH ----------------
-@app.route("/api/signup", methods=["POST"])
+# ---------------- SIGNUP ----------------
+@app.route("/api/signup", methods=["POST", "OPTIONS"])
 def signup():
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        response = app.make_default_options_response()
+        headers = response.headers
+        headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "")
+        headers["Access-Control-Allow-Credentials"] = "true"
+        headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+        return response
+
     data = request.get_json() or {}
     email = data.get("email", "").lower().strip()
     password = data.get("password", "").strip()
@@ -1048,17 +1059,21 @@ def signup():
     if not email or not password or not username or not phone:
         return jsonify({"message": "All fields are required"}), 400
 
-    conn = get_connection()
-    cur = conn.cursor()
-
+    conn = cur = None
     try:
+        conn = get_connection()
+        cur = conn.cursor()
+
+        # Check if email exists
         cur.execute("SELECT user_id FROM users WHERE email=%s", (email,))
         if cur.fetchone():
-            return jsonify({"message": "Email exists"}), 409
+            return jsonify({"message": "Email already exists"}), 409
 
+        # Determine role
         is_admin = 1 if is_admin_email(email) else 0
         role = "owner" if is_admin else "guest"
 
+        # Insert user
         cur.execute(
             """
             INSERT INTO users(is_admin, role, username, email, phone, password)
@@ -1066,18 +1081,30 @@ def signup():
             """,
             (is_admin, role, username, email, phone, generate_password_hash(password)),
         )
-        user_id = cur.lastrowid
         conn.commit()
-        # Optional: log_audit("user.signup", entity_type="user", entity_id=user_id, details={"email": email}, user_id=user_id)
-        return jsonify({"message": "Signup successful"})
+        user_id = cur.lastrowid
+
+        # Optional: log audit
+        # log_audit("user.signup", entity_type="user", entity_id=user_id, details={"email": email}, user_id=user_id)
+
+        return jsonify({"message": "Signup successful"}), 201
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": "Internal server error", "error": str(e)}), 500
+
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
+# ---------------- SIGNIN ----------------
 @app.route("/api/signin", methods=["POST", "OPTIONS"])
 def signin():
-    # Handle CORS preflight OPTIONS
+    # Handle CORS preflight
     if request.method == "OPTIONS":
         response = app.make_default_options_response()
         headers = response.headers
@@ -1094,44 +1121,49 @@ def signin():
     if not email or not password:
         return jsonify({"message": "Email and password are required"}), 400
 
-    # Kitchen login
-    if is_kitchen_email(email) and password == KITCHEN_PASSWORD:
-        safe_user = build_kitchen_user()
-        session["user"] = safe_user
-        session.permanent = True
-        return jsonify({"message": "Kitchen login successful", "user": safe_user})
-
-    conn = get_connection()
-    cur = conn.cursor()
-
+    conn = cur = None
     try:
+        # Kitchen login
+        if is_kitchen_email(email) and password == KITCHEN_PASSWORD:
+            safe_user = build_kitchen_user()
+            session["user"] = safe_user
+            session.permanent = True
+            return jsonify({"message": "Kitchen login successful", "user": safe_user})
+
+        # DB login
+        conn = get_connection()
+        cur = conn.cursor()
         cur.execute("SELECT * FROM users WHERE email=%s", (email,))
         user = cur.fetchone()
 
-        # Auto-sync admin account if needed
-        if user and is_admin_email(user["email"]):
+        if not user:
+            return jsonify({"message": "Invalid credentials"}), 401
+
+        # Auto-sync admin password
+        if is_admin_email(user["email"]):
             user = sync_admin_account_password(cur, user)
             conn.commit()
 
-        password_ok, needs_upgrade = verify_password(user["password"], password) if user else (False, False)
-        if not user or not password_ok:
-            session.pop("user", None)
+        password_ok, needs_upgrade = verify_password(user["password"], password)
+        if not password_ok:
             return jsonify({"message": "Invalid credentials"}), 401
 
-        # Upgrade plaintext password to hashed
+        # Upgrade plaintext password
         if needs_upgrade:
-            upgraded_password_hash = generate_password_hash(password)
+            upgraded_hash = generate_password_hash(password)
             cur.execute(
                 "UPDATE users SET password=%s WHERE user_id=%s",
-                (upgraded_password_hash, user["user_id"])
+                (upgraded_hash, user["user_id"])
             )
             conn.commit()
-            user["password"] = upgraded_password_hash
+            user["password"] = upgraded_hash
 
+        # Build safe user session
         safe_user = build_safe_user(user)
         session["user"] = safe_user
         session.permanent = True
 
+        # Optional: log audit
         log_audit(
             "user.signin",
             entity_type="user",
@@ -1141,9 +1173,17 @@ def signin():
         )
 
         return jsonify({"message": "Login successful", "user": safe_user})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": "Internal server error", "error": str(e)}), 500
+
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 @app.route("/api/signout", methods=["POST"])
 def signout():
