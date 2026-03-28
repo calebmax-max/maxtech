@@ -83,6 +83,14 @@ def is_password_hash(value):
     return value and value.startswith(("scrypt:", "pbkdf2:", "argon2:"))
 
 
+def is_admin_email(email):
+    return (email or "").strip().lower() == ADMIN_EMAIL
+
+
+def is_kitchen_email(email):
+    return (email or "").strip().lower() == KITCHEN_EMAIL
+
+
 def verify_password(stored_password, submitted_password):
     if not stored_password:
         return False, False
