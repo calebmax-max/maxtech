@@ -14,25 +14,27 @@ from flask_cors import CORS
 from requests.auth import HTTPBasicAuth
 from werkzeug.security import check_password_hash, generate_password_hash
 
+
 # ---------------- APP SETUP ----------------
 app = Flask(__name__)
 
+# Session & security settings
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "super-secret-key")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
-app.config["SESSION_COOKIE_SAMESITE"] = os.getenv("SESSION_COOKIE_SAMESITE", "None")
-app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true"
+app.config["SESSION_COOKIE_SAMESITE"] = "None"  # Required for cross-site cookies
+app.config["SESSION_COOKIE_SECURE"] = True     # Must be True for HTTPS
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
-
+# Allowed frontend origins (include mobile URL)
 client_origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "CLIENT_ORIGIN",
-        "http://localhost:3000,http://127.0.0.1:3000,https://calebtonny.alwaysdata.net,https://elitehotel-4pgo.onrender.com",
-    ).split(",")
-    if origin.strip()
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://calebtonny.alwaysdata.net",
+    "https://elitehotel-4pgo.onrender.com",
+    "https://elitehotel.onrender.com"  # <- make sure your phone uses this
 ]
 
+# Enable CORS (preflight-safe)
 CORS(
     app,
     supports_credentials=True,
@@ -41,20 +43,19 @@ CORS(
     allow_headers=["Content-Type", "Authorization"]
 )
 
-
-
-
 # ---------------- DATABASE ----------------
 DB_HOST = os.getenv("DB_HOST", "mysql-calebtonny.alwaysdata.net")
 DB_PORT = int(os.getenv("DB_PORT", "3306"))
 DB_USER = os.getenv("DB_USER", "calebtonny")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "modcom1234")
 DB_NAME = os.getenv("DB_NAME", "calebtonny_sokogarden")
+
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "caleb@gmail.com").strip().lower()
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Caleb123").strip()
 KITCHEN_EMAIL = os.getenv("KITCHEN_EMAIL", "tonie@gmail.com").strip().lower()
 KITCHEN_PASSWORD = os.getenv("KITCHEN_PASSWORD", "Caleb123").strip()
 FOOD_ORDER_STATUSES = {"pending", "preparing", "ready", "completed", "cancelled"}
+
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
@@ -77,19 +78,9 @@ def get_connection():
     )
 
 
+# ---------------- PASSWORD HELPERS ----------------
 def is_password_hash(value):
-    if not value:
-        return False
-
-    return value.startswith("scrypt:") or value.startswith("pbkdf2:") or value.startswith("argon2:")
-
-
-def is_admin_email(email):
-    return email.strip().lower() == ADMIN_EMAIL
-
-
-def is_kitchen_email(email):
-    return email.strip().lower() == KITCHEN_EMAIL
+    return value and value.startswith(("scrypt:", "pbkdf2:", "argon2:"))
 
 
 def verify_password(stored_password, submitted_password):
@@ -99,10 +90,23 @@ def verify_password(stored_password, submitted_password):
     if is_password_hash(stored_password):
         return check_password_hash(stored_password, submitted_password), False
 
+    # Plaintext fallback (upgrade needed)
     if stored_password == submitted_password:
         return True, True
 
     return False, False
+
+
+# ---------------- AUTH DECORATORS ----------------
+def require_login(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user = session.get("user")
+        if not user:
+            return jsonify({"message": "Unauthorized"}), 401
+        return view(*args, **kwargs)
+
+    return wrapped
 
 
 def require_admin(view):
@@ -110,7 +114,7 @@ def require_admin(view):
     def wrapped(*args, **kwargs):
         user = session.get("user")
         if not user or not user.get("is_admin"):
-            return jsonify({"message": "Unauthorized"}), 403
+            return jsonify({"message": "Forbidden"}), 403
         return view(*args, **kwargs)
 
     return wrapped
@@ -124,17 +128,6 @@ def require_kitchen(view):
             return jsonify({"message": "Unauthorized"}), 403
         if not (user.get("is_admin") or user.get("role") == "kitchen"):
             return jsonify({"message": "Forbidden"}), 403
-        return view(*args, **kwargs)
-
-    return wrapped
-
-
-def require_login(view):
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-        user = session.get("user")
-        if not user:
-            return jsonify({"message": "Unauthorized"}), 401
         return view(*args, **kwargs)
 
     return wrapped
@@ -156,11 +149,12 @@ def require_roles(*allowed_roles):
     return decorator
 
 
+# ---------------- HELPER ----------------
 def ensure_column(cursor, table_name, column_name, column_definition):
+    """Add column to table if it doesn't exist"""
     cursor.execute(f"SHOW COLUMNS FROM {table_name} LIKE %s", (column_name,))
     if not cursor.fetchone():
         cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
-
 
 DEFAULT_ROOMS = [
     {
@@ -1046,7 +1040,6 @@ def debug_check_password():
 @app.route("/api/signup", methods=["POST"])
 def signup():
     data = request.get_json() or {}
-
     email = data.get("email", "").lower().strip()
     password = data.get("password", "").strip()
     username = data.get("username", "").strip()
@@ -1068,36 +1061,40 @@ def signup():
 
         cur.execute(
             """
-            INSERT INTO users(is_admin,role,username,email,phone,password)
-            VALUES(%s,%s,%s,%s,%s,%s)
+            INSERT INTO users(is_admin, role, username, email, phone, password)
+            VALUES(%s, %s, %s, %s, %s, %s)
             """,
             (is_admin, role, username, email, phone, generate_password_hash(password)),
         )
         user_id = cur.lastrowid
         conn.commit()
-        log_audit(
-            "user.signup",
-            entity_type="user",
-            entity_id=user_id,
-            details={"email": email},
-            user_id=user_id,
-        )
+        # Optional: log_audit("user.signup", entity_type="user", entity_id=user_id, details={"email": email}, user_id=user_id)
         return jsonify({"message": "Signup successful"})
     finally:
         cur.close()
         conn.close()
 
 
-@app.route("/api/signin", methods=["POST"])
+@app.route("/api/signin", methods=["POST", "OPTIONS"])
 def signin():
-    data = request.get_json() or {}
+    # Handle CORS preflight OPTIONS
+    if request.method == "OPTIONS":
+        response = app.make_default_options_response()
+        headers = response.headers
+        headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "")
+        headers["Access-Control-Allow-Credentials"] = "true"
+        headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+        return response
 
+    data = request.get_json() or {}
     email = data.get("email", "").lower().strip()
     password = data.get("password", "").strip()
 
     if not email or not password:
         return jsonify({"message": "Email and password are required"}), 400
 
+    # Kitchen login
     if is_kitchen_email(email) and password == KITCHEN_PASSWORD:
         safe_user = build_kitchen_user()
         session["user"] = safe_user
@@ -1111,6 +1108,7 @@ def signin():
         cur.execute("SELECT * FROM users WHERE email=%s", (email,))
         user = cur.fetchone()
 
+        # Auto-sync admin account if needed
         if user and is_admin_email(user["email"]):
             user = sync_admin_account_password(cur, user)
             conn.commit()
@@ -1120,11 +1118,12 @@ def signin():
             session.pop("user", None)
             return jsonify({"message": "Invalid credentials"}), 401
 
+        # Upgrade plaintext password to hashed
         if needs_upgrade:
             upgraded_password_hash = generate_password_hash(password)
             cur.execute(
                 "UPDATE users SET password=%s WHERE user_id=%s",
-                (upgraded_password_hash, user["user_id"]),
+                (upgraded_password_hash, user["user_id"])
             )
             conn.commit()
             user["password"] = upgraded_password_hash
@@ -1132,6 +1131,7 @@ def signin():
         safe_user = build_safe_user(user)
         session["user"] = safe_user
         session.permanent = True
+
         log_audit(
             "user.signin",
             entity_type="user",
@@ -1144,7 +1144,6 @@ def signin():
     finally:
         cur.close()
         conn.close()
-
 
 @app.route("/api/signout", methods=["POST"])
 def signout():
