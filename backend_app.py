@@ -51,6 +51,7 @@ DB_USER = os.getenv("DB_USER", "calebtonny")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "modcom1234")
 DB_NAME = os.getenv("DB_NAME", "calebtonny_sokogarden")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "caleb@gmail.com").strip().lower()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Caleb123").strip()
 KITCHEN_EMAIL = os.getenv("KITCHEN_EMAIL", "tonie@gmail.com").strip().lower()
 KITCHEN_PASSWORD = os.getenv("KITCHEN_PASSWORD", "Caleb123").strip()
 FOOD_ORDER_STATUSES = {"pending", "preparing", "ready", "completed", "cancelled"}
@@ -641,8 +642,16 @@ def create_tables():
         """
     )
 
-    cur.execute("UPDATE users SET is_admin=1 WHERE LOWER(email)=%s", (ADMIN_EMAIL,))
-    cur.execute("UPDATE users SET role='owner' WHERE LOWER(email)=%s", (ADMIN_EMAIL,))
+    cur.execute(
+        """
+        INSERT INTO users(is_admin, role, username, email, phone, password)
+        VALUES(1, 'owner', 'Caleb Tonny', %s, '', %s)
+        ON DUPLICATE KEY UPDATE
+        is_admin=1,
+        role='owner'
+        """,
+        (ADMIN_EMAIL, generate_password_hash(ADMIN_PASSWORD)),
+    )
     cur.execute(
         """
         INSERT INTO site_catalog(id, rooms_json, dining_json)
@@ -956,6 +965,37 @@ def build_kitchen_user():
     }
 
 
+def sync_admin_account_password(cur, user):
+    if not user or not is_admin_email(user["email"]):
+        return user
+
+    updates = []
+    params = []
+
+    if not user.get("is_admin"):
+        updates.append("is_admin=%s")
+        params.append(1)
+        user["is_admin"] = 1
+
+    if user.get("role") != "owner":
+        updates.append("role=%s")
+        params.append("owner")
+        user["role"] = "owner"
+
+    password_matches, needs_upgrade = verify_password(user.get("password"), ADMIN_PASSWORD)
+    if not password_matches or needs_upgrade:
+        refreshed_password_hash = generate_password_hash(ADMIN_PASSWORD)
+        updates.append("password=%s")
+        params.append(refreshed_password_hash)
+        user["password"] = refreshed_password_hash
+
+    if updates:
+        params.append(user["user_id"])
+        cur.execute(f"UPDATE users SET {', '.join(updates)} WHERE user_id=%s", tuple(params))
+
+    return user
+
+
 @app.route("/api/debug/version", methods=["GET"])
 def debug_version():
     return jsonify(
@@ -1071,19 +1111,14 @@ def signin():
         cur.execute("SELECT * FROM users WHERE email=%s", (email,))
         user = cur.fetchone()
 
+        if user and is_admin_email(user["email"]):
+            user = sync_admin_account_password(cur, user)
+            conn.commit()
+
         password_ok, needs_upgrade = verify_password(user["password"], password) if user else (False, False)
         if not user or not password_ok:
             session.pop("user", None)
             return jsonify({"message": "Invalid credentials"}), 401
-
-        if is_admin_email(user["email"]) and not user.get("is_admin"):
-            cur.execute("UPDATE users SET is_admin=1 WHERE user_id=%s", (user["user_id"],))
-            conn.commit()
-            user["is_admin"] = 1
-        if is_admin_email(user["email"]) and user.get("role") != "owner":
-            cur.execute("UPDATE users SET role='owner' WHERE user_id=%s", (user["user_id"],))
-            conn.commit()
-            user["role"] = "owner"
 
         if needs_upgrade:
             upgraded_password_hash = generate_password_hash(password)
