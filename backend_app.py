@@ -43,6 +43,9 @@ CORS(
     allow_headers=["Content-Type", "Authorization"]
 )
 
+# Upload folder for product images
+app.config["UPLOAD_FOLDER"] = "static/images"
+
 # ---------------- DATABASE ----------------
 DB_HOST = os.getenv("DB_HOST", "mysql-calebtonny.alwaysdata.net")
 DB_PORT = int(os.getenv("DB_PORT", "3306"))
@@ -1109,6 +1112,79 @@ def signup():
             cur.close()
         if conn:
             conn.close()
+            
+
+@app.route("/api/add_product", methods = ["POST"])
+def Addproducts():
+    if request.method == "POST":
+        try:
+            # extract the data entered on the form
+            product_name = request.form["product_name"]
+            product_description = request.form["product_description"]
+            product_cost = request.form["product_cost"]
+            # for the product photo we shall fetch it from the files as shown below
+            product_photo = request.files["product_photo"]
+
+            # extract the file name of the product photo
+            filename = product_photo.filename
+
+            # by use of the os module (operating system) we can extract the file path where the email is currently saved
+            photo_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+
+            # save the product photo image into the new location
+            product_photo.save(photo_path)
+
+            # establish a connection to the db 
+            connection = get_connection()
+            # create a cursor
+            cursor = connection.cursor()
+
+            #structure the sql query to insert the products details to the details 
+            sql = "INSERT INTO product_details(product_name, product_description, product_cost, product_photo) VALUES (%s, %s, %s, %s)"
+
+            # create a tuple that will hold the data from the form which are currently held from the different ariables declared.
+            data = (product_name, product_description, product_cost, filename)
+
+            # use the cursor to execute the sql as you replace the placeholders with the actual data 
+            cursor.execute(sql, data)
+
+            # commit the changes to the databases
+            connection.commit()
+             
+            return jsonify({"message": "Product added successfully"})
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({"message": "Internal server error", "error": str(e)}), 500
+
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'connection' in locals():
+                connection.close() 
+
+
+@app.route("/api/get_products") 
+def get_products():
+        # create a connection to the DB
+        connection = get_connection()
+
+        # create a cursor
+        cursor = connection.cursor(pymysql.cursors.DictCursor )
+        #  Structure the query to fetch all the products from the table products_details
+        sql = "SELECT * FROM product_details;"
+        #  Execute the query
+        cursor.execute(sql)
+
+        # create a variable taht will hold the data fetched from the table
+        products = cursor.fetchall()
+
+
+    
+
+
+        return jsonify(products)
 
 
 # ---------------- SIGNIN ----------------
