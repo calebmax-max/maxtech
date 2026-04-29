@@ -40,7 +40,7 @@ CORS(
     supports_credentials=True,
     origins=client_origins,
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"]
+    allow_headers=["Content-Type"]
 )
 
 # Upload folder for product images
@@ -109,10 +109,15 @@ def verify_password(stored_password, submitted_password):
 
 
 # ---------------- AUTH DECORATORS ----------------
+
+def get_current_request_user():
+    return session.get("user")
+
+
 def require_login(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        user = session.get("user")
+        user = get_current_request_user()
         if not user:
             return jsonify({"message": "Unauthorized"}), 401
         return view(*args, **kwargs)
@@ -123,7 +128,7 @@ def require_login(view):
 def require_admin(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        user = session.get("user")
+        user = get_current_request_user()
         if not user or not user.get("is_admin"):
             return jsonify({"message": "Forbidden"}), 403
         return view(*args, **kwargs)
@@ -134,7 +139,7 @@ def require_admin(view):
 def require_kitchen(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        user = session.get("user")
+        user = get_current_request_user()
         if not user:
             return jsonify({"message": "Unauthorized"}), 403
         if not (user.get("is_admin") or user.get("role") == "kitchen"):
@@ -148,7 +153,7 @@ def require_roles(*allowed_roles):
     def decorator(view):
         @wraps(view)
         def wrapped(*args, **kwargs):
-            user = session.get("user")
+            user = get_current_request_user()
             if not user or not user.get("is_admin"):
                 return jsonify({"message": "Unauthorized"}), 403
             if allowed_roles and user.get("role") not in allowed_roles:
@@ -735,7 +740,7 @@ def event_date_is_booked(cur, event_date):
 
 def log_audit(action, entity_type=None, entity_id=None, details=None, user_id=None):
     payload = json.dumps(details or {})
-    session_user = session.get("user") or {}
+    session_user = get_current_request_user() or {}
     target_user_id = user_id if user_id is not None else session_user.get("user_id")
 
     conn = get_connection()
@@ -1059,7 +1064,7 @@ def signup():
         headers = response.headers
         headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "")
         headers["Access-Control-Allow-Credentials"] = "true"
-        headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        headers["Access-Control-Allow-Headers"] = "Content-Type"
         headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
         return response
 
@@ -1196,7 +1201,7 @@ def signin():
         headers = response.headers
         headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "")
         headers["Access-Control-Allow-Credentials"] = "true"
-        headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        headers["Access-Control-Allow-Headers"] = "Content-Type"
         headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
         return response
 
@@ -1214,7 +1219,10 @@ def signin():
             safe_user = build_kitchen_user()
             session["user"] = safe_user
             session.permanent = True
-            return jsonify({"message": "Kitchen login successful", "user": safe_user})
+            return jsonify({
+                "message": "Kitchen login successful",
+                "user": safe_user,
+            })
 
         # DB login
         conn = get_connection()
@@ -1263,7 +1271,10 @@ def signin():
             user_id=user["user_id"],
         )
 
-        return jsonify({"message": "Login successful", "user": safe_user})
+        return jsonify({
+            "message": "Login successful",
+            "user": safe_user,
+        })
 
     except Exception as e:
         import traceback
@@ -1278,7 +1289,7 @@ def signin():
 
 @app.route("/api/signout", methods=["POST"])
 def signout():
-    current_user = session.get("user") or {}
+    current_user = get_current_request_user() or {}
     if current_user.get("user_id"):
         log_audit(
             "user.signout",
@@ -1293,7 +1304,7 @@ def signout():
 
 @app.route("/api/me", methods=["GET"])
 def get_current_user():
-    user = session.get("user")
+    user = get_current_request_user()
     if not user:
         return jsonify({"user": None})
 
@@ -1303,7 +1314,7 @@ def get_current_user():
 @app.route("/api/profile/overview", methods=["GET"])
 @require_login
 def profile_overview():
-    current_user = session.get("user") or {}
+    current_user = get_current_request_user() or {}
     user_id = current_user.get("user_id")
     email = (current_user.get("email") or "").strip().lower()
     phone = (current_user.get("phone") or "").strip()
@@ -1453,7 +1464,7 @@ def profile_overview():
 @app.route("/api/admin/check", methods=["GET"])
 @require_admin
 def admin_check():
-    return jsonify({"message": "Welcome admin", "user": session.get("user")})
+    return jsonify({"message": "Welcome admin", "user": get_current_request_user()})
 
 
 # ---------------- PUBLIC SaaS CATALOG ----------------
@@ -1537,7 +1548,7 @@ def update_user_role(user_id):
             entity_type="user",
             entity_id=user_id,
             details={"email": target_user["email"], "from": target_user.get("role"), "to": next_role},
-            user_id=session.get("user", {}).get("user_id"),
+            user_id=(get_current_request_user() or {}).get("user_id"),
         )
         return jsonify({"message": "User role updated"})
     finally:
@@ -1816,7 +1827,7 @@ def update_food_order_status(order_id):
                 "previous_status": current_status,
                 "status": next_status,
             },
-            user_id=session.get("user", {}).get("user_id"),
+            user_id=(get_current_request_user() or {}).get("user_id"),
         )
         return jsonify({"message": "Food order status updated", "status": next_status})
     finally:
@@ -1953,6 +1964,7 @@ def food_order():
         cur = conn.cursor()
 
         try:
+            current_user = get_current_request_user() or {}
             prune_expired_records(cur)
             cur.execute(
                 f"""
@@ -1961,7 +1973,7 @@ def food_order():
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    session.get("user", {}).get("user_id"),
+                    current_user.get("user_id"),
                     data.get("order_title"),
                     data.get("preferred_date"),
                     data.get("preferred_time"),
@@ -1978,9 +1990,8 @@ def food_order():
                 entity_type="food_order",
                 entity_id=order_id,
                 details={"title": data.get("order_title"), "total_amount": data.get("total_amount")},
-                user_id=session.get("user", {}).get("user_id"),
+                user_id=current_user.get("user_id"),
             )
-            current_user = session.get("user", {}) or {}
             send_guest_confirmation(
                 email=current_user.get("email"),
                 phone=data.get("payment_phone"),
@@ -2020,6 +2031,7 @@ def event_booking():
         cur = conn.cursor()
 
         try:
+            current_user = get_current_request_user() or {}
             prune_expired_records(cur)
 
             if event_date_is_booked(cur, data.get("event_date")):
@@ -2033,7 +2045,7 @@ def event_booking():
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    session.get("user", {}).get("user_id"),
+                    current_user.get("user_id"),
                     data.get("name"),
                     data.get("email"),
                     data.get("phone"),
@@ -2049,7 +2061,7 @@ def event_booking():
                 entity_type="event_booking",
                 entity_id=booking_id,
                 details={"event_type": data.get("event_type"), "event_date": data.get("event_date")},
-                user_id=session.get("user", {}).get("user_id"),
+                user_id=current_user.get("user_id"),
             )
             send_guest_confirmation(
                 email=data.get("email"),
@@ -2088,6 +2100,7 @@ def stay_booking():
         cur = conn.cursor()
 
         try:
+            current_user = get_current_request_user() or {}
             prune_expired_records(cur)
             cur.execute(
                 """
@@ -2096,7 +2109,7 @@ def stay_booking():
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    session.get("user", {}).get("user_id"),
+                    current_user.get("user_id"),
                     data.get("room_name"),
                     data.get("check_in"),
                     data.get("check_out"),
@@ -2111,9 +2124,8 @@ def stay_booking():
                 entity_type="room_booking",
                 entity_id=booking_id,
                 details={"room_name": data.get("room_name"), "amount": data.get("amount")},
-                user_id=session.get("user", {}).get("user_id"),
+                user_id=current_user.get("user_id"),
             )
-            current_user = session.get("user", {}) or {}
             send_guest_confirmation(
                 email=current_user.get("email"),
                 phone=data.get("payment_phone") or data.get("phone"),
@@ -2156,6 +2168,7 @@ def room_booking():
         cur = conn.cursor()
 
         try:
+            current_user = get_current_request_user() or {}
             prune_expired_records(cur)
             cur.execute(
                 """
@@ -2164,7 +2177,7 @@ def room_booking():
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    session.get("user", {}).get("user_id"),
+                    current_user.get("user_id"),
                     data.get("room_name"),
                     data.get("check_in"),
                     data.get("check_out"),
@@ -2179,9 +2192,8 @@ def room_booking():
                 entity_type="room_booking",
                 entity_id=booking_id,
                 details={"room_name": data.get("room_name"), "amount": data.get("amount")},
-                user_id=session.get("user", {}).get("user_id"),
+                user_id=current_user.get("user_id"),
             )
-            current_user = session.get("user", {}) or {}
             send_guest_confirmation(
                 email=current_user.get("email"),
                 phone=data.get("payment_phone"),
