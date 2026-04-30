@@ -536,6 +536,24 @@ def mpesa_payment():
         response = requests.post(url, json=payload, headers=headers)
         print(response.text)
         return jsonify({"message": "Please Complete Payment in Your Phone and we will deliver in minutes"})
+
+
+from flask import Flask, request, jsonify
+from elitehotel import get_bot_response
+
+app = Flask(__name__)
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    user_message = data.get("message")
+
+    response = get_bot_response(user_message)
+
+    return jsonify({"reply": response})
+
+if __name__ == "__main__":
+    app.run(debug=True)
      
         
 
