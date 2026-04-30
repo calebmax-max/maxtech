@@ -29,6 +29,8 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 client_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3004",
+    "http://127.0.0.1:3004",
     "https://calebtonny.alwaysdata.net",
     "https://elitehotel-4pgo.onrender.com",
     "https://elitehotel.onrender.com"  # <- make sure your phone uses this
