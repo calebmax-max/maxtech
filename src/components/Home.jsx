@@ -10,6 +10,9 @@ import {
 import { defaultFeaturedPlates } from '../data/diningMenu';
 
 
+
+
+
 //formatDate — Converts a Date object to "YYYY-MM-DD" string format (for <input type="date">)
 //new Date().toISOString() → "2025-07-10T12:00:00.000Z"
 //.split('T')[0] → "2025-07-10"
@@ -30,6 +33,8 @@ const Getproducts = () => {
   const [quickCheckIn, setQuickCheckIn] = useState(today);
   const [quickCheckOut, setQuickCheckOut] = useState(getTomorrow(today));
   const [quickGuests, setQuickGuests] = useState("2");
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
 
   // declare the navigate hook
 
@@ -41,6 +46,27 @@ const Getproducts = () => {
       .then((catalog) => setFeaturedDishes(catalog.featuredPlates || []))
       .catch(() => {});
   }, []);
+
+  const sendMessage = async () => {
+    if (input.trim() === "") return;
+    const userMessage = { text: input, sender: 'user' };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    try {
+      const response = await fetch("http://127.0.0.1:5000/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message: input })
+      });
+      const data = await response.json();
+      const botMessage = { text: data.reply, sender: 'bot' };
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
 
   //Backup dishes if the API returns no data
   const fallbackDishes = [
@@ -129,6 +155,77 @@ const Getproducts = () => {
             <p className="hotel-hero__subtitle">
               Experience Luxury &amp; Fine Dining in One Place
             </p>
+
+            <div className="chat-container" style={{
+              width: '350px',
+              margin: '30px auto',
+              background: '#fff',
+              borderRadius: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              height: '500px',
+              boxShadow: '0 0 10px rgba(0,0,0,0.2)',
+              border: '2px solid #0d6adf'
+            }}>
+              <div className="chat-header" style={{
+                background: '#0d6adf',
+                color: 'white',
+                padding: '15px',
+                fontWeight: 'bold',
+                borderRadius: '8px 8px 0 0'
+              }}>
+                🏨 Hotel Assistant
+              </div>
+              <div className="chat-box" style={{
+                flex: 1,
+                padding: '10px',
+                overflowY: 'auto',
+                background: '#f9f9f9'
+              }}>
+                {messages.map((msg, index) => (
+                  <div key={index} className={`message ${msg.sender}`} style={{
+                    margin: '8px 0',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    maxWidth: '70%',
+                    display: 'inline-block',
+                    background: msg.sender === 'user' ? '#f0bc47' : '#fff',
+                    border: msg.sender === 'bot' ? '1px solid #ddd' : 'none',
+                    float: msg.sender === 'user' ? 'right' : 'left',
+                    clear: 'both',
+                    color: msg.sender === 'user' ? '#000' : '#333'
+                  }}>
+                    {msg.text}
+                  </div>
+                ))}
+              </div>
+              <div className="chat-input" style={{
+                display: 'flex',
+                borderTop: '1px solid #0d6adf'
+              }}>
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type a message..."
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    border: 'none',
+                    outline: 'none',
+                    background: '#f9f9f9'
+                  }}
+                />
+                <button onClick={sendMessage} style={{
+                  padding: '10px',
+                  background: '#0d6adf',
+                  color: 'white',
+                  border: 'none',
+                  cursor: 'pointer',
+                  borderRadius: '0 0 8px 0'
+                }}>Send</button>
+              </div>
+            </div>
 
             <div className="hotel-hero__actions">
               <button

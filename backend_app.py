@@ -2374,5 +2374,27 @@ def callback():
     return jsonify({"status": "ok"})
 
 
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    message = data.get("message", "").strip().lower()
+    
+    # Simple chatbot responses
+    if "hello" in message or "hi" in message:
+        reply = "Hello! Welcome to Elite Hotels. How can I assist you today?"
+    elif "room" in message or "booking" in message:
+        reply = "I'd be happy to help you book a room! You can check our available rooms and make a reservation through our website."
+    elif "dining" in message or "food" in message or "restaurant" in message:
+        reply = "Our signature dining offers exquisite meals. Check out our menu and place your order online!"
+    elif "contact" in message or "phone" in message:
+        reply = "You can reach us at our reception or call us directly. We're here to help!"
+    elif "thank" in message:
+        reply = "You're welcome! Is there anything else I can help you with?"
+    else:
+        reply = "I'm here to help with hotel bookings, dining reservations, and general inquiries. How can I assist you?"
+    
+    return jsonify({"reply": reply})
+
+
 if __name__ == "__main__":
     app.run(debug=True)
