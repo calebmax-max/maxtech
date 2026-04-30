@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom';
 import {
   fetchManagedDiningCatalog,
@@ -36,6 +36,7 @@ const Getproducts = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const messagesEndRef = useRef(null);
 
   // declare the navigate hook
 
@@ -47,6 +48,13 @@ const Getproducts = () => {
       .then((catalog) => setFeaturedDishes(catalog.featuredPlates || []))
       .catch(() => {});
   }, []);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   const sendMessage = async () => {
     if (input.trim() === "") return;
@@ -520,6 +528,7 @@ const Getproducts = () => {
                 </div>
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
           
           {/* Input Area */}
