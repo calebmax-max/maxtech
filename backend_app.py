@@ -2376,24 +2376,44 @@ def callback():
 
 @app.route("/chat", methods=["POST"])
 def chat():
+    import csv
+    import os
+    
     data = request.get_json()
     message = data.get("message", "").strip().lower()
     
-    # Simple chatbot responses
-    if "hello" in message or "hi" in message:
-        reply = "Hello! Welcome to Elite Hotels. How can I assist you today?"
-    elif "room" in message or "booking" in message:
-        reply = "I'd be happy to help you book a room! You can check our available rooms and make a reservation through our website."
-    elif "dining" in message or "food" in message or "restaurant" in message:
-        reply = "Our signature dining offers exquisite meals. Check out our menu and place your order online!"
-    elif "contact" in message or "phone" in message:
-        reply = "You can reach us at our reception or call us directly. We're here to help!"
-    elif "thank" in message:
-        reply = "You're welcome! Is there anything else I can help you with?"
-    else:
-        reply = "I'm here to help with hotel bookings, dining reservations, and general inquiries. How can I assist you?"
+    if not message:
+        return jsonify({"reply": "Please type a message to continue."})
     
-    return jsonify({"reply": reply})
+    # Load chatbot responses from CSV
+    csv_path = os.path.join(os.path.dirname(__file__), 'cvs', 'chatbot_responses.csv')
+    
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                keywords = row.get('Keywords', '').lower().split(',')
+                utterances = row.get('Utterance', '').lower().split(',')
+                response = row.get('Response', '')
+                
+                # Check if any keyword matches
+                for keyword in keywords:
+                    keyword = keyword.strip()
+                    if keyword and keyword in message:
+                        return jsonify({"reply": response})
+                
+                # Check if any utterance pattern matches
+                for utterance in utterances:
+                    utterance = utterance.strip()
+                    if utterance and utterance in message:
+                        return jsonify({"reply": response})
+    except FileNotFoundError:
+        # Fallback if CSV is not found
+        pass
+    
+    # Default response if no match found
+    default_reply = "I'm here to help with hotel bookings, dining reservations, and general inquiries. How can I assist you?"
+    return jsonify({"reply": default_reply})
 
 
 if __name__ == "__main__":
